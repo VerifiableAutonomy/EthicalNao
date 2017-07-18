@@ -49,31 +49,8 @@ class robot_controller():
         self.ip_robot = ip_robot
         self.Experiment_Logger = Utilities.Logger('ROBOT_control')
         self.Experiment_Logger.write('Generating robot objects')
-
-
-        self.agent = nao_agent.Agent()
         
-        #believe_at_goal = self.agent.B('at_goal')
-        #not_believe_at_goal = self.agent.NOT(self.a)
-        
-        self.agent.add_condition_rule(self.agent.B('vocal_warning_received'), self.vocal_warning_received_rule)
-        self.agent.add_condition_rule(self.agent.B('pointed_warning_received'), self.pointed_warning_received_rule)
-        self.agent.add_condition_rule(self.agent.B('too_close_to_a_human'), self.stop_rule)
-        self.agent.add_condition_rule(self.agent.NOT(self.agent.B('human_in_danger')), self.stop_rule)
-        self.agent.add_condition_rule(self.agent.B('all_humans_stopped'), self.stop_rule)
-        self.agent.add_condition_rule(self.agent.AND(self.agent.B('at_goal'), self.agent.NOT(self.agent.B('stopped_moving'))), self.stop_moving_rule)
-        self.agent.add_condition_rule(self.agent.NOT(self.agent.B('at_goal')), self.move_to_target_rule)
-        self.agent.add_condition_rule(self.agent.AND(self.agent.AND(self.agent.B('at_goal'), self.agent.B('warn_can_be_heard')),
-                                      self.agent.AND(self.agent.NOT(self.agent.B('warning_given')), self.agent.B('warning_plan'))), self.vocal_warning_rule
-                                      )
-        self.agent.add_condition_rule(self.agent.AND(self.agent.AND(self.agent.B('at_goal'), self.agent.B('warn_can_be_heard')),
-                                                     self.agent.AND(self.agent.NOT(self.agent.B('warning_given')), self.agent.B('pointing_plan'))), self.pointed_warning_rule
-                                      )
-        self.agent.add_rule(self.agent.dummy_rule)
-        
-        
-        plan_types = ['move','warn','point']
-
+ 
 ########create graphs for self and humans in the experiment##############
         
 #######################################################################
@@ -96,25 +73,20 @@ class robot_controller():
         self.end_flag = mp.Event()
     
     
-    #RULES
-    def move_to_target_rule(self,robot,rule_info):
-        #plan and execute robot motion if not at goal
-#==============================================================================
-#         plan = rule_info['plan']
-#         robot.speed_factor = plan['speed']
-#         robot_motion = self.CE[plan['type']].motion_command(plan['position'], plan, plot=False)
-#         next_position_robot = robot_motion['next_position']
-#         self.Experiment_Logger.write('target ' + str(next_position_robot[0])+' '+str(next_position_robot[1]))
-#         robot.go_to_position(next_position_robot[0], next_position_robot[1])
-#==============================================================================
+    #ACTIONS
+    def move_to_target_action(self,robot,action_info):
+        #plan and execute robot motion
+        plan = action_info['plan']
+        robot.speed_factor = plan['speed']
+        # Subject to change
+        robot_motion = plan['motion_command']
+        next_position_robot = robot_motion['next_position']
+        self.Experiment_Logger.write('target ' + str(next_position_robot[0])+' '+str(next_position_robot[1]))
+        robot.go_to_position(next_position_robot[0], next_position_robot[1])
         robot.speak_text('move to target')#debug
-        print 'rule 1'
-        
-    def stop_moving_rule(self, robot, rule_info):
-        #robot.stop_robot()
-        self.agent.add_belief('stopped_moving')
-    
-    def stop_rule(self,robot,rule_info):
+            
+    def stop_action(self,robot,action_info):
+        robot.stop_robot()
 #==============================================================================
 #         msgs=rule_info['msgs']
 #         self.end_flag.set()#cause CE_processes to terminate on next loop
@@ -123,39 +95,20 @@ class robot_controller():
 #         for _ in range(3):
 #             self.results_q.task_done()
 #==============================================================================
-        robot.speak_text('stop')#debug
-        print 'stop'
 
-    def vocal_warning_rule(self, robot, rule_info):
+    def vocal_warning_action(self, robot, action_info):
         #if at warn location give warning and signal to human warning given
-        consequence_results = rule_info['consequence_results']
-        current_position = rule_info['current_position']
-        #robot.stop_robot()
+        consequence_results = action_info['consequence_results']
         robot.speak_text(self.settings['warning_call'], blocking=True)
-        for human in self.settings['humans']:
-            position = consequence_results['warn'][human + '_goal']
-            self.robot_q.put({'warning_type' : 'warn', 'position':position})
-            self.agent.add_belief('warning_given')
-            self.Experiment_Logger.write('Warning given at ' + str(current_position[0]) + ' ' + str(current_position[1]))
-
-        robot.speak_text('vocal warning')#debug
-        print 'vocal warning'
+        position = consequence_results['warn']['humanA_goal']
+        self.robot_q.put({'warning_type' : 'warn', 'position':position})
         
-    def pointed_warning_rule(self, robot, rule_info):
-#==============================================================================
-#         plan = rule_info['plan']
-#         current_position = rule_info['current_position']
-#         robot.stop_robot()
-#         robot.point_direction_world(plan['point_pos'][0], plan['point_pos'][1])
-#         self.Experiment_Logger.write('Pointing given at ' + str(current_position[0]) + ' ' + str(current_position[1]))
-#         for human in self.settings['humans']:
-#             self.robot_q.put({'warning_type' : 'point','position':plan['point_pos']})
-#             self.agent.add_belief('warning_given')
-#==============================================================================
-        robot.speak_text('point warning')#debug
-        print 'point warning'
-
-    def vocal_warning_received_rule(self, robot, rule_info):
+    def pointed_warning_action(self, robot, action_info):
+        plan = action_info['plan']
+        robot.point_direction_world(plan['point_pos'][0], plan['point_pos'][1])
+        self.robot_q.put({'warning_type' : 'point','position':plan['point_pos']})
+ 
+#    def vocal_warning_received_rule(self, robot, rule_info):
 #==============================================================================
 #         danger_locs =[]
 #         for danger in self.settings['dangers']:
@@ -175,10 +128,8 @@ class robot_controller():
 #                 self.CE[plan].add_obstacles(update, actor = human)
 # 
 #==============================================================================
-        robot.speak_text('vocal warning heard')#debug
-        print 'vocal warning heard'
 
-    def pointed_warning_received_rule(self, robot):
+#    def pointed_warning_received_rule(self, robot):
 #==============================================================================
 #         update = plan['point_pos']
 #                         
@@ -187,9 +138,7 @@ class robot_controller():
 #             for human in self.settings['humans']:
 #                 self.CE[plan].add_obstacles(update, actor = human)
 #==============================================================================
-        robot.speak_text('point warning seen')#debug
-        print 'point warning seen'
-
+ 
 
     def CE_manager_proc(self):
         #connect to robot and move it to the start
