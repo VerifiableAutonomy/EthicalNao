@@ -127,7 +127,7 @@ def main(argv):
     Experiment_Logger.write('Running script: ' + settings['session_name'])
 
     Experiment_Logger.write('Generating camera object')
-    Camera = Webcam.Webcam()
+    #Camera = Webcam.Webcam()
 
     #create managed dicts the handles for which can be passed to all processes that need access to the tracker
     #create and start a process that repeatedly polls the tracker for information on all tracked objects and stores that data in the shared dicts
