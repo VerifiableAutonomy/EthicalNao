@@ -1,0 +1,54 @@
+#settings to test everything works: 
+#1 start human and robot some way apart. Set human goal and spoofed robot goal and plan selection as intercept (due to no ML to set this yet) so that intercept happens. Test if robot and human go to start then walk to intercept point and stop.
+#2 as before but plan type and robot goal so that warn happens in and out of ack range
+#3 as before but plan type and robot goal so that point happens in and out of ack range
+#functionality to test: messaging system for warn and point, update of robots model of human knowledge, stopping due to intercept/reacting to warn/point. Scoring of plans 
+#
+session_name 'debug_session_move'
+hearing_dist 0.75
+pointing_dist 0.75
+humans ['HUMAN_A']
+warning_call 'Danger'
+#by making dangers a list of tuples rather than names the tracker is not used to add them to the map
+#dangers ['TARGET_A']
+dangers [(1,1)]
+HUMAN_A_ip '192.168.20.225'
+HUMAN_A_start_angle 90
+HUMAN_A_start [0,-0.7]
+HUMAN_A_speed_factor 0.25
+#HUMAN_A_obstacles ['TARGET_A']
+HUMAN_A_goal 'TARGET_A'
+ROBOT_start_angle 0
+ROBOT_start [-0.7,0]
+ROBOT_speed_factor 0.25
+min_speed 0.1
+max_speed 0.5
+#robot pre-determined plan used for debugging
+#ROBOT_plan {'type':'move','angle':0,'position':[0,0],'point_pos':(0,0),'speed':0.3}
+#ROBOT_plan_move {'type':'move','angle':0,'position':[0,0],'point_pos':(0,0),'speed':0.3}
+ROBOT_plan {'type':'warn','angle':0,'position':[-0.72,-0.26],'point_pos':(0,0),'speed':0.25}
+#ROBOT_plan_point {'type':'point','angle':0,'position':[-0.5,0],'point_pos':(0,0),'speed':0.3}
+tracked_targets ['TARGET_A']
+virtual_objects {}
+speed_threshold 0.02
+update_rate 1
+camera_rate 0.5
+do_plotting True
+plot_template False
+MAX_SCORE 10
+#Weights for ethical score calc
+W_danger_distance 1
+W_robot_walking_dist 1
+W_robot_speed 4.2
+W_robot_danger_dist 1
+W_wait_time 0.15
+W_human_distance_to_goal 1
+W_robot_danger_dist 1
+#GP parameters
+acquisition_type 'EI'
+max_iter 10
+#DEBUG mode settings
+DEBUG_position_ROBOT (1,-1)
+DEBUG_position_HUMAN_A (-1,-1)
+DEBUG_velocity_human (0.177,0.177)
+DEBUG_goal_HUMAN_A (1,1)

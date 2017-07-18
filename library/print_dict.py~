@@ -1,0 +1,20 @@
+import copy
+
+def print_dict(dictionary, current_depth=0, line_break='<br>'):
+    txt = ''
+    current_dictionary = copy.copy(dictionary)
+    try:
+        current_dictionary.pop("positions", None)
+    except:
+        pass
+    for key, value in current_dictionary.iteritems():
+        if isinstance(value, dict):
+            txt += (current_depth + 1) * '*' + str(key) + line_break
+            depth = current_depth + 1
+            txt += print_dict(value, depth)
+        else:
+            txt += (current_depth + 1) * '>' + str(key) + '=' + str(value) + line_break
+    return txt
+    
+test_d = {"ham" : "yes", "egg" : "yes", "spam" : "no" }
+print print_dict(test_d)

@@ -1,0 +1,36 @@
+#settings to test everything works: 
+#1 start human and robot some way apart. Set human goal and spoofed robot goal and plan selection as intercept (due to no ML to set this yet) so that intercept happens. Test if robot and human go to start then walk to intercept point and stop.
+#2 as before but plan type and robot goal so that warn happens in and out of ack range
+#3 as before but plan type and robot goal so that point happens in and out of ack range
+#functionality to test: messaging system for warn and point, update of robots model of human knowledge, stopping due to intercept/reacting to warn/point. Scoring of plans 
+
+session_name 'debug_session'
+hearing_dist 1
+pointing_dist 1
+humans ['HUMAN_A','HUMAN_B']
+warning_call 'Danger'
+dangers [[0.5,0.5]]
+HUMAN_A_start_angle 0
+HUMAN_A_start 0,0
+HUMAN_A_speed_factor 0.25
+HUMAN_A_obstacles [[1.0,0.5]]
+HUMAN_A_goal [1.0,1.5]
+HUMAN_B_start_angle 0
+HUMAN_B_start 0,0
+HUMAN_B_speed_factor 0.25
+HUMAN_B_obstacles [[1.0,0.5]]
+HUMAN_B_goal [1.0,1.5]
+ROBOT_start_angle 0
+ROBOT_start 0,0
+ROBOT_speed_factor 0.25
+tracked_targets ['TARGET_A','TARGET_B','TARGET_C']
+virtual_objects {}
+speed_threshold 0.02
+update_rate 1
+camera_rate 0.5
+do_plotting False
+plot_template False
+W_danger_distance 1
+W_robot_walking_dist 1
+W_robot_speed 1
+W_human_distance_to_goal 1

@@ -1,0 +1,4 @@
+Mon Jul 17 17:22:01 2017;Supervision;Running script: debug_session_move
+Mon Jul 17 17:22:01 2017;Supervision;Generating camera object
+Mon Jul 17 17:22:01 2017;Supervision;Generating tracker process
+Mon Jul 17 17:22:04 2017;Supervision;Generating Ethical Robot

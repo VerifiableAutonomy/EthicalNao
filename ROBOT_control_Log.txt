@@ -1,0 +1,10 @@
+Mon Jul 17 17:22:04 2017;ROBOT_control;Generating robot objects
+Mon Jul 17 17:22:04 2017;ROBOT_control;Running script: debug_session_move
+Mon Jul 17 17:22:08 2017;ROBOT_control;DEBUG_GO
+Mon Jul 17 17:22:08 2017;ROBOT_control;Distance to HUMAN_A = 0.685642210833
+Mon Jul 17 17:22:09 2017;ROBOT_control;human speed 5.15017721294e-06
+Mon Jul 17 17:22:09 2017;ROBOT_control;Distance to HUMAN_A = 0.685662543693
+Mon Jul 17 17:22:10 2017;ROBOT_control;Warning given at -0.723742248535 -0.26113482666
+Mon Jul 17 17:22:10 2017;ROBOT_control;human speed 4.60689899445e-06
+Mon Jul 17 17:22:10 2017;ROBOT_control;Distance to HUMAN_A = 0.685621601316
+Mon Jul 17 17:22:11 2017;ROBOT_control;human speed 1.719892087e-06
