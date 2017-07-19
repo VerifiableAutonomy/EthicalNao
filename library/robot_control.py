@@ -12,7 +12,7 @@ import time
 #import sys
 #import scipy.io as io
 #import matplotlib.pyplot as pyplot
-import numpy
+#import numpy
 #import warnings
 #import threading
 #import Queue
@@ -21,12 +21,8 @@ import multiprocessing as mp
 from library import Utilities
 #from library import Vicon
 from library import Robot
-from library import PathPlanning
 #from library import easygui
-from library import Consequence_para
-from library import sim_eval
-import GPyOpt
-from library import nao_agent
+from library import ethical_engine
 #==============================================================================
 # TODO: log data of the perceived human world view
 # Needs to maintain a model of the human's view of the world for use in planning and assessing consequences, i.e., update the models held by the CE according to 'sensor' data. 
@@ -49,6 +45,8 @@ class robot_controller():
         self.ip_robot = ip_robot
         self.Experiment_Logger = Utilities.Logger('ROBOT_control')
         self.Experiment_Logger.write('Generating robot objects')
+        
+        self.ethical_engine = ethical_engine.ethical_engine(self)
         
  
 ########create graphs for self and humans in the experiment##############
@@ -140,6 +138,7 @@ class robot_controller():
 #==============================================================================
  
 
+#    This is the main control loop
     def CE_manager_proc(self):
         #connect to robot and move it to the start
         #self.tracker = 1#debug
@@ -156,13 +155,14 @@ class robot_controller():
         self.Experiment_Logger.write(go_msg)
        
         
-        #init variables needed    
+#==============================================================================
+#         #init variables needed    
         not_moving = {}
-        #warning_given = {}
         for human in self.settings['humans']:
             not_moving[human] = 0
-        hypothesis_selected = {}
-
+#         hypothesis_selected = {}
+# 
+#==============================================================================
         
         #continually grab the output from the plan processes
         #when all 3 plans have sent a message allow them all to do more processing
@@ -171,63 +171,24 @@ class robot_controller():
         for sim_steps in range(1000):
             start = time.time()
 
-            msgs = 0
-            rule_info = {}
             #select the appropriate hypothesis of human knowledge to be used by all the CEs
             
-            for human in self.settings['humans']:#for each human in the experiment
-                #TODO hypothesis checking, to evaluate estimate of human world knowledge
-                for hypothesis in enumerate(self.human_knowledge[human]):#for all hypotheses of what that human knows about
-                    #compare human actions with what they would be doing according to each hypothesis and score them according to how likely they are
-                    #plan path for a human from the start position to the assumed target with the assumed obstacle list and compare with actual path taken
-                    #get confidence scores for each hypothesis, deleting hypotheses if they are below a threshold
-                    #select hypothesis for each human
-                    pass
-                hypothesis_selected[human] = 0#no hypothesis checking yet so just choose the first one
-                #TODO if it is a different hypothesis from before then update all the human graphs in all CEs
-                
-            consequence_results = {}
-
-            #TODO change where messages are grabbed from to the shared CE message queue, and change how many are needed
-            
-            while msgs < 3:#keep grabbing msgs until 3 have been grabbed - one from each CE
-                result = self.results_q.get()
-                consequence_results[result['plan']['type']] = result#store the 3 results in a dictionary keyed by plan type
-                msgs = msgs + 1
-
-            rule_info['consequence_results'] = consequence_results
-            rule_info['msgs'] = msgs
-            #when all 3 msgs received process them
-            #the returned results will contain the evaluation score and the plan
-            #the scores get compared and the best plan is stored in plan so it can be executed   
-            
-            if consequence_results['move']['inaction_danger']:#if inaction would be dangerous
-                self.agent.add_belief('human_in_danger')
-                plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
-                plan = None
-                for consequence_result in consequence_results.values():
-                    if consequence_result['score'] < plan_eval:
-                        plan_eval = consequence_result['score']
-                        plan = consequence_result['plan']                        
-                                  
-            else:#if human not in danger then stop the robot
-                self.agent.change_belief('human_in_danger', 0)
-                self.Experiment_Logger.write('human not in danger')
-            
-            #################### test plan for use in debugging ###############            
-            if 'ROBOT_plan' in self.settings: plan = self.settings['ROBOT_plan']#predefined set plan from settings file
-            ############################################
-            
-            rule_info['plan'] = plan
-            self.agent.drop_belief('warning_plan')
-            self.agent.drop_belief('pointing_plan')
-            if plan['type'] == 'warn':
-                      self.agent.add_belief('warning_plan')                                  
-            elif plan['type'] == 'point':
-                      self.agent.add_belief('pointing_plan')
+#==============================================================================
+#             for human in self.settings['humans']:#for each human in the experiment
+#                 #TODO hypothesis checking, to evaluate estimate of human world knowledge
+#                 for hypothesis in enumerate(self.human_knowledge[human]):#for all hypotheses of what that human knows about
+#                     #compare human actions with what they would be doing according to each hypothesis and score them according to how likely they are
+#                     #plan path for a human from the start position to the assumed target with the assumed obstacle list and compare with actual path taken
+#                     #get confidence scores for each hypothesis, deleting hypotheses if they are below a threshold
+#                     #select hypothesis for each human
+#                     pass
+#                 hypothesis_selected[human] = 0#no hypothesis checking yet so just choose the first one
+#                 #TODO if it is a different hypothesis from before then update all the human graphs in all CEs
+#                 
+#==============================================================================
+             
             
             if 'DEBUG_position_ROBOT' in self.settings and not self.tracker:
-                current_position = self.settings['DEBUG_position_ROBOT']
                 #currently in debug mode there is no commands to send the robot so just end the process
                 #TODO add some output messages here to help with debugging
                 #distance_to_target = 0.4
@@ -235,51 +196,14 @@ class robot_controller():
                 #    self.agent.add_belief('not_at_goal')      
                 #self.agent.reason(robot,rule_info)
                 self.end_flag.set()#cause CE_processes to terminate on next loop
-                msgs = 0
                 for _ in range(3):
                     self.results_q.task_done()
-            else:
-                current_position = self.tracker.get_position(self.name)[0:2]
-                rule_info['current_position'] = current_position
 
-            self.travelled_path.append(current_position)#log travelled path            
-                        
-            
+            rule_info = self.ethical_engine.update_beliefs()
+                                   
             if not self.end_flag.is_set():
-                distance_to_target = (numpy.sum((current_position - plan['position'])**2))**0.5
-                print 'dist ',distance_to_target
-                print current_position
-                if (distance_to_target < 0.1):
-                    self.agent.add_belief('at_goal')
-                self.agent.drop_belief('warn_can_be_heard')
-
-                for human in self.settings['humans']:
-                    current_position_human = self.tracker.get_position(human)[0:2] 
-                    inter_robot_distance = numpy.sum((current_position - current_position_human)**2)**0.5
-                    self.Experiment_Logger.write('Distance to ' + human + ' = ' + str(inter_robot_distance))
-                    if inter_robot_distance < 0.5:#if too close to a human then stop the robot
-                        self.agent.add_belief('too_close_to_a_human')
-                        self.Experiment_Logger.write('too close')
-                    
-                    if inter_robot_distance < self.settings['hearing_dist']:
-                        self.agent.change_belief('warn_can_be_heard', 1)
-                    #distance_to_target = 0#debug
-                    
-            
-                if (self.agent.sensor_value('warning_given') == 1):
-                    if (not self.human_q.empty()):
-                        msg = self.human_q.get()
-                        self.end_flag.set()#debug
-                        if msg['type'] == 'warn':
-                            self.agent.add_belief('vocal_warning_received')
-                        elif msg['type'] == 'point':
-                            self.agent.add_belief('visual_warning_received')
-                            
-                if all(i>7 for i in not_moving.values()):
-                    self.agent.add_belief('all_humans_stopped')
-
-
-                self.agent.reason(robot, rule_info)
+ 
+                self.ethical_engine.execute_a_rule(robot, rule_info)
                 
                 end = time.time()
                 dur = end - start
