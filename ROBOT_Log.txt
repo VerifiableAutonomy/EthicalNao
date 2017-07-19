@@ -1,13 +1,52 @@
-Mon Jul 17 17:22:04 2017;ROBOT;Instantiating robot with ip 192.168.20.224
-Mon Jul 17 17:22:04 2017;ROBOT;Binding motion proxy
-Mon Jul 17 17:22:05 2017;ROBOT;Binding voice proxy
-Mon Jul 17 17:22:06 2017;ROBOT;Binding posture proxy
-Mon Jul 17 17:22:06 2017;ROBOT;Binding battery proxy
-Mon Jul 17 17:22:06 2017;ROBOT;Binding memory proxy
-Mon Jul 17 17:22:06 2017;ROBOT;Binding system proxy
-Mon Jul 17 17:22:06 2017;ROBOT;Binding tracker proxy
-Mon Jul 17 17:22:07 2017;ROBOT;Binding audio player proxy
-Mon Jul 17 17:22:07 2017;ROBOT;Binding speech recognition proxy
-Mon Jul 17 17:22:07 2017;ROBOT;No previous subscription to speech recognition
-Mon Jul 17 17:22:07 2017;ROBOT;Switching off awareness
-Mon Jul 17 17:22:08 2017;ROBOT;Set head orientation
+Wed Jul 19 14:04:21 2017;ROBOT;Instantiating robot with ip 192.168.20.224
+Wed Jul 19 14:04:21 2017;ROBOT;Binding motion proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding voice proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding posture proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding battery proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding memory proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding system proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding tracker proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding audio player proxy
+Wed Jul 19 14:04:22 2017;ROBOT;Binding speech recognition proxy
+Wed Jul 19 14:04:22 2017;ROBOT;No previous subscription to speech recognition
+Wed Jul 19 14:04:22 2017;ROBOT;Switching off awareness
+Wed Jul 19 14:04:22 2017;ROBOT;Set head orientation
+Wed Jul 19 14:04:23 2017;ROBOT;Instantiating robot with ip 192.168.20.224
+Wed Jul 19 14:04:23 2017;ROBOT;Binding motion proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding voice proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding posture proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding battery proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding memory proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding system proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding tracker proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding audio player proxy
+Wed Jul 19 14:04:23 2017;ROBOT;Binding speech recognition proxy
+Wed Jul 19 14:04:23 2017;ROBOT;No previous subscription to speech recognition
+Wed Jul 19 14:04:23 2017;ROBOT;Switching off awareness
+Wed Jul 19 14:04:23 2017;ROBOT;Set head orientation
+Wed Jul 19 14:04:24 2017;ROBOT;Instantiating robot with ip 192.168.20.224
+Wed Jul 19 14:04:24 2017;ROBOT;Binding motion proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding voice proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding posture proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding battery proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding memory proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding system proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding tracker proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding audio player proxy
+Wed Jul 19 14:04:24 2017;ROBOT;Binding speech recognition proxy
+Wed Jul 19 14:04:24 2017;ROBOT;No previous subscription to speech recognition
+Wed Jul 19 14:04:24 2017;ROBOT;Switching off awareness
+Wed Jul 19 14:04:24 2017;ROBOT;Set head orientation
+Wed Jul 19 14:04:25 2017;ROBOT;Instantiating robot with ip 192.168.20.224
+Wed Jul 19 14:04:25 2017;ROBOT;Binding motion proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding voice proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding posture proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding battery proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding memory proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding system proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding tracker proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding audio player proxy
+Wed Jul 19 14:04:25 2017;ROBOT;Binding speech recognition proxy
+Wed Jul 19 14:04:25 2017;ROBOT;No previous subscription to speech recognition
+Wed Jul 19 14:04:25 2017;ROBOT;Switching off awareness
+Wed Jul 19 14:04:25 2017;ROBOT;Set head orientation

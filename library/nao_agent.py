@@ -28,15 +28,17 @@ class Agent:
             self.reason()
     
     def reason(self,robot,rule_info):
-        self.getpercepts(self.beliefbase)
+#        self.getpercepts(self.beliefbase)
         self.manage_goals(self.beliefbase, self.goalbase)
         selected_rule = self.selectRule(self.beliefbase, self.goalbase)
         self.execute(selected_rule, robot, rule_info)
 
-    def getpercepts(self, beliefbase):
-		time.sleep(0.1)
-		return
-
+#==============================================================================
+#     def getpercepts(self, beliefbase):
+# 		time.sleep(0.1)
+# 		return
+# 
+#==============================================================================
     def manage_goals(self, beliefbase, goalbase):
         for goal in self.goalbase:
             if (self.is_achieved(goal)):

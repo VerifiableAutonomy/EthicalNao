@@ -1,7 +1,9 @@
-Mon Jul 17 17:22:04 2017;CEngine_warn;Creating consequence engine CEngine_warn for ROBOT
-Mon Jul 17 17:22:08 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
-Mon Jul 17 17:22:08 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
-Mon Jul 17 17:22:09 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
-Mon Jul 17 17:22:09 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
-Mon Jul 17 17:22:10 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
-Mon Jul 17 17:22:10 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
+Wed Jul 19 14:04:21 2017;CEngine_warn;Creating consequence engine CEngine_warn for ROBOT
+Wed Jul 19 14:04:21 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
+Wed Jul 19 14:04:21 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
+Wed Jul 19 14:04:23 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
+Wed Jul 19 14:04:23 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
+Wed Jul 19 14:04:24 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
+Wed Jul 19 14:04:24 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
+Wed Jul 19 14:04:25 2017;CEngine_warn;No intervention:HUMAN_A Goal (1, 1) Danger True C_Danger [1 1] d_dist 0.0
+Wed Jul 19 14:04:25 2017;CEngine_warn;HUMAN_A goal [-0.25 -0.5 ] speed 0.25 CD None WD 2 S 0.5 DD 0 WT 0 RDD 0 Total 10
