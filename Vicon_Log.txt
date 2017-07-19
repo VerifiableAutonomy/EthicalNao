@@ -1,3 +1,0 @@
-Mon Jul 17 17:22:01 2017;Vicon;Tracker Started
-Mon Jul 17 17:22:01 2017;Vicon;Waiting for tracker to be filled with data
-Mon Jul 17 17:22:04 2017;Vicon;Filled with data
