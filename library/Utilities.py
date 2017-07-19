@@ -500,6 +500,6 @@ class Ethical_Score():
         self.robot_speed = 0.5
         self.danger_distance = 0
         self.robot_danger_dist = 0
-        self.robot_goal_dist = 2
+        self.robot_obj_dist = 2
         self.wait_time = 0
         self.total = 100

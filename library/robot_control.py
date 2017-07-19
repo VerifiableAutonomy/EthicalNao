@@ -49,7 +49,7 @@ class robot_controller():
         self.ip_robot = ip_robot
         self.Experiment_Logger = Utilities.Logger('ROBOT_control')
         self.Experiment_Logger.write('Generating robot objects')
-        
+        self.objective = self.settings['ROBOT_objective']
         
  
 ########create graphs for self and humans in the experiment##############

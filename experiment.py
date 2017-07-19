@@ -29,6 +29,7 @@ from library import Webcam
 from library import Utilities
 from library import human_control
 from library import robot_control
+from library import planner
 
 #experiment script
 #call with arg of experiment name (-s <file name>), this will determine the parameters file to load
@@ -184,6 +185,13 @@ def main(argv):
     #it then sits and waits for messages from the CE processes so can be safely started before the CE processes
     #it compares the optimal plan suggested by all the CE processes and selects which to execute and instruct ther robot
     robot.CE_manager.start() 
+    
+    results_q = mp.JoinableQueue()
+    plan_eval_q = mp.Queue()
+    
+    planners = {}
+    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q)
+        
         
     #do the same for the human(s)
     if 'DEBUG_goal_HUMAN_A' not in settings:
@@ -227,9 +235,10 @@ def main(argv):
         print debug_msg
         robot_q.put('DEBUG_GO')#send start message to the robot controller
         human_q.put({'type':'warn'})        
-        CE_processes = {}
-        for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
-        for plan in ['move','warn','point']: CE_processes[plan].start()
+        #CE_processes = {}
+        #for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
+        #for plan in ['move','warn','point']: CE_processes[plan].start()
+        for plan in ['move','warn','point']: planners[plan].start()
 
         #for _ in range(3):
         #    robot.results_q.put(1)

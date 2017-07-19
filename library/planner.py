@@ -17,12 +17,12 @@ import multiprocessing as mp
 #planners[plan].plan_process.run()
 
 class Planner():
-    def __init__(self, settings, tracker, plan, results_q):
+    def __init__(self, settings, tracker, plan, results_q, plan_eval_q):
         self.settings = settings#settings dictionary loaded from file in supervisor and shared with all modules
         self.tracker = tracker#Utilities.Tracker created in supervisor and shared with all modules
         self.plan = plan#plan type for this planner, ['move','warn','point']
         self.results_q = results_q#results_q = mp.JoinableQueue()
-        self.CE = Consequence_para.ConsequenceEngine('ROBOT', self.settings['humans'], self.tracker, plan, self.settings, engine_name='CEngine_'+plan, results_q)
+        self.CE = Consequence_para.ConsequenceEngine('ROBOT', self.settings['humans'], self.tracker, plan, self.settings, engine_name='CEngine_'+plan, plan_eval_q)
         
         if 'self_obstacles' in self.settings:#if a starting set of objects the robot knows about self_obstacles ['TARGET_A','TARGET_B']
             self.CE.set_obstacles(self.settings['self_obstacles'])
