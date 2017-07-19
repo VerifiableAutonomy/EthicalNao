@@ -12,9 +12,6 @@ class Agent:
         self.goalbase = []
         # dictionary linking goal names to functions that determine if they are satisfied
         self.goal_functions = {}
-        # dictionary linking goal to ordered list of subgoals
-        # self.subgoals = {}
-        # dictionary linking goal to pair of parent goal and next goal in list.
         self.pending_goals = {}
 
 
