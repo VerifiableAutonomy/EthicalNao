@@ -26,7 +26,7 @@ def plot_value_function():
 
 
 class ConsequenceEngine():
-    def __init__(self, self_name, actor_names, tracker, plan, settings, engine_name='CEngine'):
+    def __init__(self, self_name, actor_names, tracker, plan, settings, engine_name='CEngine', plan_eval_q):
                         
         self.__logger = Utilities.Logger(engine_name)
         self.__logger.write('Creating consequence engine ' + engine_name + ' for ' + self_name)
@@ -45,6 +45,8 @@ class ConsequenceEngine():
         
         self.__plan = plan
         self.settings = settings
+        
+        self.plan_eval_q = plan_eval_q
 
         for actor in actor_names: self.make_graph(actor)
         self.make_graph(self_name)
@@ -615,10 +617,7 @@ class ConsequenceEngine():
         results['score'] = result
         results['log_msg'] = score
         results['inter_rob_dists'] = robot_actor_dists#return the list of inter-robot dists so whether to warn can be evaluated by the controller
-        try:
-            results['goal'] = result['goal']#if the plan is warn or point the predict or evaluate function returns an updated goal
-        except:
-            pass
+        
         return results
 
 

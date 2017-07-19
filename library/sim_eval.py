@@ -34,6 +34,7 @@ class sim_evaluator():
         self.settings = settings
         self.consequence_results = None
         self.plan_params = {}
+        
         #self.max_score = max_score#pass in the max_score that corresponds to a failed plan
         if 'DEBUG_goal_HUMAN_A' in self.settings:
             self.current_situation = CE.predict_and_evaluate(actor, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot)#.replace('XXX', actor)+actor)
