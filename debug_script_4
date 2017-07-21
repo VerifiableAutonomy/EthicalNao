@@ -7,6 +7,7 @@
 session_name 'debug_session_move'
 hearing_dist 0.75
 pointing_dist 0.75
+safe_dist 0,3
 humans ['HUMAN_A']
 warning_call 'Danger'
 #by making dangers a list of tuples rather than names the tracker is not used to add them to the map

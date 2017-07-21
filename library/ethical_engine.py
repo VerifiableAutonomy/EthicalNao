@@ -17,6 +17,7 @@ class ethical_engine():
         self.agent = nao_agent.Agent()
         self.robot_controller = robot_controller
         self.results_q = self.robot_controller.results_q
+        self.plan_eval_q = self.robot_controller.plan_eval_q
         self.settings = self.robot_controller.settings
  
        # Subject to change
@@ -72,11 +73,11 @@ class ethical_engine():
         
 #       Rules for stopping stuff 
     def stop_rule(self,robot,rule_info):
-#         self.end_flag.set()#cause CE_processes to terminate on next loop
+        self.robot_controller.end_flag.set()#cause CE_processes to terminate on next loop
 #        self.robot_controller.stop_action(robot, rule_info)
 #         msgs = 0
-        for _ in range(3):
-            self.robot_controller.results_q.task_done()
+        #for _ in range(3):
+        #    self.robot_controller.results_q.task_done()
 #        robot.speak_text('stop')#debug
         print 'stop_rule'
         
@@ -94,43 +95,69 @@ class ethical_engine():
     def debugging(self):
         return 'DEBUG_position_ROBOT' in self.robot_controller.settings and not self.robot_controller.tracker
         
+        
+    def compare_plans(self, consequence_results):
+        plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
+        plan = None
+        
+        for consequence_result in consequence_results:
+            if consequence_result['result']['total'] < plan_eval:
+                     plan_eval = consequence_result['result']['total']
+                     plan = consequence_result['plan_params']
+
+        return plan 
+
 #        update_beliefs populates the agent's belief base and return information necessary for executing rules
     def update_beliefs(self):
         self.Experiment_Logger.write('Updating Beliefs')
         
         rule_info = {}
               
-        consequence_results = {}
-        msgs = 0
+        
+        msgs = 0#messages from planners
             
-#        Get messages from Consequence engines
+#        Get messages from planners 
         self.Experiment_Logger.write('Getting Messages')
         while msgs < 3:
             result = self.results_q.get()
-            consequence_results[result['plan']['type']] = result#store the 3 results in a dictionary keyed by plan type
+            #consequence_results[result['plan']['type']] = result#store the 3 results in a dictionary keyed by plan type
+            no_intervention = result
             msgs = msgs + 1
         self.Experiment_Logger.write('got messages')
+        
+        #and Consequence engines
+        consequence_results = []
+        while not self.plan_eval_q.empty():
+            consequence_results.append(self.plan_eval_q.get())
             
+        self.Experiment_Logger.write('Plans evaluated = ' + str(len(consequence_results)))
                         
-        if consequence_results['move']['inaction_danger']:#if inaction would be dangerous
-            self.agent.add_belief('human_in_danger')
-            plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
-            plan = None
-            for consequence_result in consequence_results.values():
-                if consequence_result['score'] < plan_eval:
-                    plan_eval = consequence_result['score']
-                    plan = consequence_result['plan']                        
-                                  
-        else:#if human not in danger then stop the robot
+#==============================================================================
+#         if consequence_results['move']['inaction_danger']:#if inaction would be dangerous
+#             self.agent.add_belief('human_in_danger')
+#             plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
+#             plan = None
+#             for consequence_result in consequence_results.values():
+#                 if consequence_result['score'] < plan_eval:
+#                     plan_eval = consequence_result['score']
+#                     plan = consequence_result['plan']                        
+#==============================================================================
+    
+        if no_intervention['danger_distance'] > self.settings['safe_dist']:#if human not in danger then stop the robot
             self.agent.drop_belief('human_in_danger')
             self.Experiment_Logger.write('human not in danger')
+        else:
+            plan = self.compare_plans(consequence_results)
+                
+                                      
+        
 
                         
         #################### test plan for use in debugging ###############            
         if 'ROBOT_plan' in self.settings: plan = self.settings['ROBOT_plan']#predefined set plan from settings file
         ############################################
 
-        rule_info['plan'] = plan
+        rule_info['plan'] = plan['type']
         self.agent.drop_belief('warning_plan')
         self.agent.drop_belief('pointing_plan')
         if plan['type'] == 'warn':

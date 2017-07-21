@@ -36,7 +36,7 @@ import GPyOpt
 class robot_controller():
 #class for control of the ethical robot
 #It has one process that handles movement commands and plan comparison and 3 processes that invoke CE instances, 1 for each plan type so plans can be simultaneously evaluated
-    def __init__(self, tracker, robot_q, human_q, session_path, settings, ip_robot = '192.168.20.224'):
+    def __init__(self, tracker, robot_q, human_q, session_path, settings, ip_robot = '192.168.20.224', results_q, plan_eval_q):
         self.tracker = tracker
         self.log_file = session_path
         #if self.tracker:
@@ -83,7 +83,8 @@ class robot_controller():
                 self.human_knowledge[human].append([])            
             #this initial knowledge setting could be modified to instead be estimated from facts about the world, e.g., things in human 'sensor' range    
         self.Experiment_Logger.write('Running script: ' + self.settings['session_name'])
-        self.results_q = mp.JoinableQueue()#queue for communication between the CE processes and the manager process
+        self.results_q = results_q
+        self.plan_eval_q = plan_eval_q
         
         self.CE_manager = mp.Process(target=self.CE_manager_proc)#manager process that decides on the plan to execute, and controls the robot
         self.end_flag = mp.Event()
@@ -221,6 +222,7 @@ class robot_controller():
                 #for _ in range(3):
                 #    self.results_q.task_done()
                 robot = Robot.Robot(self.ip_robot, 'ROBOT', self.tracker)
+                
             rule_info = self.ethical_engine.update_beliefs()
                                    
             if not self.end_flag.is_set():
@@ -247,6 +249,8 @@ class robot_controller():
             if self.end_flag.is_set():
                 if 'DEBUG_position_ROBOT' not in self.settings:
                     robot.clean_up()
+                for _ in range(3):
+                    self.results_q.task_done()
                 break#CE thread will run until all robots are stationary or 1000 iteration steps
             
             for _ in range(3):

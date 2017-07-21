@@ -290,7 +290,7 @@ class ConsequenceEngine():
             score.robot_obj_dist = robot_eval['obj_dist']
             #aim is to minimise this score
             score.total =       self.settings['W_robot_walking_dist']*score.robot_walking_dist - \
-                                self.settings['W_danger_distance']*score.danger_distance + \                                
+                                self.settings['W_danger_distance']*score.danger_distance + \
                                 self.settings['W_robot_speed']*score.robot_speed - \
                                 self.settings['W_wait_time']* score.wait_time - \
                                 self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
@@ -358,7 +358,7 @@ class ConsequenceEngine():
             score.robot_obj_dist = robot_eval['obj_dist']
             #aim is to minimise this score
             score.total =       self.settings['W_robot_walking_dist']*score.robot_walking_dist - \
-                                self.settings['W_danger_distance']*score.danger_distance + \                                
+                                self.settings['W_danger_distance']*score.danger_distance + \
                                 self.settings['W_robot_speed']*score.robot_speed - \
                                 self.settings['W_wait_time']* score.wait_time - \
                                 self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
@@ -422,7 +422,7 @@ class ConsequenceEngine():
                 score.robot_obj_dist = robot_eval['obj_dist']
                 #aim is to minimise this score
                 score.total =       self.settings['W_robot_walking_dist']*score.robot_walking_dist - \
-                                    self.settings['W_danger_distance']*score.danger_distance + \                                
+                                    self.settings['W_danger_distance']*score.danger_distance + \
                                     self.settings['W_robot_speed']*score.robot_speed - \
                                     self.settings['W_wait_time']* score.wait_time - \
                                     self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
@@ -571,7 +571,7 @@ class ConsequenceEngine():
         results['inter_rob_dists'] = robot_actor_dists#return the list of inter-robot dists so whether to warn can be evaluated by the controller
         
         #put the plan score result in the message q
-        self.plan_eval_q.put(result)
+        self.plan_eval_q.put({'result':result,'plan_params':plan_params})
         return results
 
 

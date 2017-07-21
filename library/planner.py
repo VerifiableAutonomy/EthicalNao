@@ -17,11 +17,12 @@ import multiprocessing as mp
 #planners[plan].plan_process.run()
 
 class Planner():
-    def __init__(self, settings, tracker, plan, results_q, plan_eval_q):
+    def __init__(self, settings, tracker, plan, results_q, plan_eval_q, end_flag):
         self.settings = settings#settings dictionary loaded from file in supervisor and shared with all modules
         self.tracker = tracker#Utilities.Tracker created in supervisor and shared with all modules
         self.plan = plan#plan type for this planner, ['move','warn','point']
         self.results_q = results_q#results_q = mp.JoinableQueue()
+        self.end_flag = end_flag#end_flag from robot_controller, used to stop the plan process
         self.CE = Consequence_para.ConsequenceEngine('ROBOT', self.settings['humans'], self.tracker, plan, self.settings, engine_name='CEngine_'+plan, plan_eval_q)
         
         if 'self_obstacles' in self.settings:#if a starting set of objects the robot knows about self_obstacles ['TARGET_A','TARGET_B']
@@ -36,63 +37,60 @@ class Planner():
         
     def plan(self):
         #main planning process which in a loop calls plan optimiser which in turn invokes the CE
-        actor = 'HUMAN_A'
-        plot = False#set plotting to false to start with as otherwise there will be too many plots!
-        if 'DEBUG_position_ROBOT' in self.settings:
-            robot_location = self.settings['DEBUG_position_ROBOT']
-        else:
-            robot_location = self.tracker.get_position('ROBOT')[0:2]
-
-        sim_evaluator = sim_eval.sim_evaluator(actor, self.plan, plot, self.CE, robot_location, self.settings)
-        
-        if 'ROBOT_plan' in self.settings: 
-            plan_msg = self.settings['ROBOT_plan']
-            plan_msg['type'] = plan
-            opt_score = sim_evaluator.calculate_score(numpy.array([[ self.settings['ROBOT_plan']['position'][0],self.settings['ROBOT_plan']['speed'] ]]))
-            consequence_results = sim_evaluator.consequence_results
-            num_evals = 1
-            #TODO set plan counter to 1: plan_counter is a shared parameter with the reasoner of how many messages to wait for before starting to compare
-        else:
-            #set initial test points apprpriate to the situation
-            start = time.time()#debug
-            x_quart = abs((sim_evaluator.x_bounds[1]-sim_evaluator.x_bounds[0])/4)
-            x_mid = (sim_evaluator.x_bounds[1]+sim_evaluator.x_bounds[0])/2
-            x_lower_q = x_mid - x_quart
-            x_upper_q = x_mid + x_quart
-            #X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25)])#only 3 points at the lower quartile point, the mid-point, and upper quartile, all at base speed
-            #X_initial = numpy.array([(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 2 
-            X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25),(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 3 
+        while not self.end_flag:
+            plot = False#set plotting to false to start with as otherwise there will be too many plots!
+            if 'DEBUG_position_ROBOT' in self.settings:
+                robot_location = self.settings['DEBUG_position_ROBOT']
+            else:
+                robot_location = self.tracker.get_position('ROBOT')[0:2]
+    
+            sim_evaluator = sim_eval.sim_evaluator(actor, self.plan, plot, self.CE, robot_location, self.settings)
             
-            #will need to test with other initial point sets, incl with different speeds
-            bounds =[{'name': 'X', 'type': 'continuous', 'domain': sim_evaluator.x_bounds},
-                     {'name': 'speed', 'type': 'continuous', 'domain': (self.settings['min_speed'],self.settings['max_speed'])}]
-            plan_opt = GPyOpt.methods.BayesianOptimization(f=sim_evaluator.calculate_score,                 
-                                             domain=bounds,        
-                                             acquisition_type=self.settings['acquisition_type'],
-                                             X = X_initial,
-                                             #exact_feval = True,
-                                             #acquisition_optimizer_type = 'CMA',
-                                             normalize_Y = False,
-                                             acquisition_jitter = 0.01)
-            end = time.time()
-            init_time = end - start#debug
-            #plan_opt.model.model.kern.variance.constrain_fixed(2.5)
-            #self.Experiment_Logger.write(plan + ' GP init time = ' + str(init_time))#TODO sort logging out
-            plan_opt.run_optimization(max_iter=self.settings['max_iter'],verbosity=False)
-            opt_time = time.time() - end#debug
-            num_evals = len(plan_opt.X)
-            #self.Experiment_Logger.write(plan + ' GP opt time = ' + str(opt_time) + ' iterations= ' + str(len(plan_opt.X-len(X_initial))))
+            if 'ROBOT_plan' in self.settings: 
+                plan_msg = self.settings['ROBOT_plan']
+                plan_msg['type'] = plan
+                opt_score = sim_evaluator.calculate_score(numpy.array([[ self.settings['ROBOT_plan']['position'][0],self.settings['ROBOT_plan']['speed'] ]]))
+                consequence_results = sim_evaluator.consequence_results
+                #TODO set plan counter to 1: plan_counter is a shared parameter with the reasoner of how many messages to wait for before starting to compare
+            else:
+                #set initial test points apprpriate to the situation
+                start = time.time()#debug
+                x_quart = abs((sim_evaluator.x_bounds[1]-sim_evaluator.x_bounds[0])/4)
+                x_mid = (sim_evaluator.x_bounds[1]+sim_evaluator.x_bounds[0])/2
+                x_lower_q = x_mid - x_quart
+                x_upper_q = x_mid + x_quart
+                #X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25)])#only 3 points at the lower quartile point, the mid-point, and upper quartile, all at base speed
+                #X_initial = numpy.array([(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 2 
+                X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25),(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 3 
+                
+                #will need to test with other initial point sets, incl with different speeds
+                bounds =[{'name': 'X', 'type': 'continuous', 'domain': sim_evaluator.x_bounds},
+                         {'name': 'speed', 'type': 'continuous', 'domain': (self.settings['min_speed'],self.settings['max_speed'])}]
+                plan_opt = GPyOpt.methods.BayesianOptimization(f=sim_evaluator.calculate_score,                 
+                                                 domain=bounds,        
+                                                 acquisition_type=self.settings['acquisition_type'],
+                                                 X = X_initial,
+                                                 #exact_feval = True,
+                                                 #acquisition_optimizer_type = 'CMA',
+                                                 normalize_Y = False,
+                                                 acquisition_jitter = 0.01)
+                end = time.time()
+                init_time = end - start#debug
+                #plan_opt.model.model.kern.variance.constrain_fixed(2.5)
+                #self.Experiment_Logger.write(plan + ' GP init time = ' + str(init_time))#TODO sort logging out
+                plan_opt.run_optimization(max_iter=self.settings['max_iter'],verbosity=False)
+                opt_time = time.time() - end#debug
+                
+                #self.Experiment_Logger.write(plan + ' GP opt time = ' + str(opt_time) + ' iterations= ' + str(len(plan_opt.X-len(X_initial))))
+                
+                #TODO decide if we want the planner to return what it thinks is the optimal plan
+                #opt_vals = plan_opt.x_opt
+                #opt_score = plan_opt.fx_opt[0]                
             
-            #TODO decide if we want the planner to return what it thinks is the optimal plan
-            #opt_vals = plan_opt.x_opt
-            #opt_score = plan_opt.fx_opt[0]
-            
-        #TODO make sim_eval put all the results as a message from each invocation of the CE
-        
-        self.results_q.put(num_evals)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
-        #self.results_q.put(output_msg)#put the output msg into the q
-        #self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
-                        
+            self.results_q.put(sim_evaluator.current_situation)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
+            #self.results_q.put(output_msg)#put the output msg into the q
+            #self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
+                            
 
 #==============================================================================
 # self.robot_graph = {}

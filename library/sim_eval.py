@@ -67,6 +67,8 @@ class sim_evaluator():
             self.grad = (self.current_situation['path'][0][1] - self.current_situation['path'][-1][1])/(self.current_situation['path'][0][0] - self.current_situation['path'][-1][0])
             self.intercept = self.current_situation['path'][0][1] - (self.grad*self.current_situation['path'][0][1])
             
+         
+            
     def calculate_score(self, params):
         #params is a numpy array of the X [0] and speed [1] values to be used in the evaluation
         self.plan_params = {}

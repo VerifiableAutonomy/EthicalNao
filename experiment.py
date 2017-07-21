@@ -177,20 +177,21 @@ def main(argv):
     #this also gives complete control over whether warning/point will be noticed
     robot_q = mp.Queue()
     human_q = mp.Queue()
-    
+    results_q = mp.JoinableQueue()#queue for communication between the CE processes and the manager process
+    plan_eval_q = mp.Queue()
     #create the robot object
     Experiment_Logger.write('Generating Ethical Robot')
-    robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings)
+    robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings, results_q, plan_eval_q)
     #start the CE manager process,- this will cause the robot to walk to it's starting place and block until it gets there
     #it then sits and waits for messages from the CE processes so can be safely started before the CE processes
     #it compares the optimal plan suggested by all the CE processes and selects which to execute and instruct ther robot
     robot.CE_manager.start() 
     
-    results_q = mp.JoinableQueue()
-    plan_eval_q = mp.Queue()
+    
+    
     
     planners = {}
-    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q)
+    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, robot.end_flag)
         
         
     #do the same for the human(s)
@@ -234,7 +235,7 @@ def main(argv):
         debug_msg = human_q.get()#get the robots ready to start message
         print debug_msg
         robot_q.put('DEBUG_GO')#send start message to the robot controller
-        human_q.put({'type':'warn'})        
+        human_q.put({'type':'warn'})#debug warning ack        
         #CE_processes = {}
         #for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
         #for plan in ['move','warn','point']: CE_processes[plan].start()
