@@ -43,21 +43,24 @@ class ethical_engine():
         
 #        Rules for Warnings
     def vocal_warning_rule(self, robot, rule_info):
-#        self.robot_controller.vocal_warning_action(self, robot, rule_info)
+        if not (self.debugging()):
+            self.robot_controller.vocal_warning_action(self, robot, rule_info)
         #if at warn location give warning and signal to human warning given
         current_position = rule_info['current_position']
         self.agent.add_belief('warning_given')
         self.Experiment_Logger.write('Warning given at ' + str(current_position[0]) + ' ' + str(current_position[1]))
-        robot.speak_text('vocal warning')#debug
+        #robot.speak_text('vocal warning')#debug
         print 'vocal_warning_rule'
         
     def vocal_warning_recieved_rule(self, robot, rule_info):
-        #self.ce.vocal_warning_received_action(self, robot, rule_info)
+        if not (self.debugging()):
+            self.ce.vocal_warning_received_action(self, robot, rule_info)
         #robot.speak_text('vocal warning heard')#debug
         print 'vocal_warning_recieved_rule'
      
     def pointed_warning_rule(self, robot, rule_info):
-#        self.robot_controller.pointed_warning_action(self, robot, rule_info)
+        if not (self.debugging()):
+            self.robot_controller.pointed_warning_action(self, robot, rule_info)
         #if at warn location give warning and signal to human warning given
         current_position = rule_info['current_position']
         self.agent.add_belief('warning_given')
@@ -66,7 +69,8 @@ class ethical_engine():
         print 'pointed_warning_rule'
         
     def pointed_warning_recieved_rule(self, robot, rule_info):
-        #self.ce.pointed_warning_received_action(self, robot, rule_info)
+        if not (self.debugging()):
+            self.ce.pointed_warning_received_action(self, robot, rule_info)
 #        robot.speak_text('pointed warning heard')#debug
         print 'pointed_warning_recieved_rule'
        
@@ -74,7 +78,8 @@ class ethical_engine():
 #       Rules for stopping stuff 
     def stop_rule(self,robot,rule_info):
         self.robot_controller.end_flag.set()#cause CE_processes to terminate on next loop
-#        self.robot_controller.stop_action(robot, rule_info)
+        if not (self.debugging()):
+            self.robot_controller.stop_action(robot, rule_info)
 #         msgs = 0
         #for _ in range(3):
         #    self.robot_controller.results_q.task_done()
@@ -82,13 +87,14 @@ class ethical_engine():
         print 'stop_rule'
         
     def stop_moving_rule(self, robot, rule_info):
- #       self.robot_controller.stop_action(robot, rule_info)
+        if not (self.debugging()):
+            self.robot_controller.stop_action(robot, rule_info)
         self.agent.add_belief('stopped_moving')
         print 'stop_moving_rule'
 #        Rules for motion
     def movement_rule(self, robot, rule_info):
-#        self.robot_controller.move_to_target_action(self, robot, rule_info)
-        self.robot_controller.speak(robot, rule_info)
+        if not (self.debugging()):
+            self.robot_controller.move_to_target_action(self, robot, rule_info)            
         print 'movement_rule'
         
         #Helper method for debugging
@@ -98,14 +104,16 @@ class ethical_engine():
         
     def compare_plans(self, consequence_results):
         plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
-        plan = None
-        
+        result = None
         for consequence_result in consequence_results:
-            if consequence_result['result']['total'] < plan_eval:
-                     plan_eval = consequence_result['result']['total']
-                     plan = consequence_result['plan_params']
+            print consequence_result['result'].total
+            if consequence_result['result'].total < plan_eval:
+                     plan_eval = consequence_result['result'].total
+                     result = consequence_result#['plan_params']
+        
+        #self.Experiment_Logger.write('Plan selected ' + Utilities.print_dict(plan))
 
-        return plan 
+        return result 
 
 #        update_beliefs populates the agent's belief base and return information necessary for executing rules
     def update_beliefs(self):
@@ -142,12 +150,18 @@ class ethical_engine():
 #                     plan_eval = consequence_result['score']
 #                     plan = consequence_result['plan']                        
 #==============================================================================
-    
         if no_intervention['danger_distance'] > self.settings['safe_dist']:#if human not in danger then stop the robot
             self.agent.drop_belief('human_in_danger')
             self.Experiment_Logger.write('human not in danger')
-        else:
-            plan = self.compare_plans(consequence_results)
+        else:           
+            self.agent.add_belief('human_in_danger')
+            consequence_result = self.compare_plans(consequence_results)
+            if consequence_result <> None:
+                plan = consequence_result['plan_params']
+            else:#if all the plans fail then robot just walks to its own objective
+                plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
+                consequence_result = {'graph':consequence_results[0]['graph']}
+            rule_info['closest_danger'] = no_intervention['closest_danger']
                 
                                       
         
@@ -157,7 +171,7 @@ class ethical_engine():
         if 'ROBOT_plan' in self.settings: plan = self.settings['ROBOT_plan']#predefined set plan from settings file
         ############################################
 
-        rule_info['plan'] = plan['type']
+        rule_info['plan'] = plan
         self.agent.drop_belief('warning_plan')
         self.agent.drop_belief('pointing_plan')
         if plan['type'] == 'warn':
@@ -165,45 +179,47 @@ class ethical_engine():
         elif plan['type'] == 'point':
             self.agent.add_belief('pointing_plan')
             
-        if self.debugging():
-            current_position = self.settings['DEBUG_position_ROBOT']
- 
         if not (self.debugging()):
             current_position = self.tracker.get_position(self.name)[0:2]
-        print plan['position']
-  
+        else:
+            current_position = self.settings['DEBUG_position_ROBOT']
+            
+        
         self.robot_controller.travelled_path.append(current_position)#log travelled path            
         distance_to_target = (numpy.sum((numpy.array(current_position) - numpy.array(plan['position']))**2))**0.5
         print 'dist ',distance_to_target
-        print current_position
+        #print current_position
         if (distance_to_target < 0.1):
             self.agent.add_belief('at_goal')
         self.agent.drop_belief('warn_can_be_heard')
             
         rule_info['current_position'] = current_position
+        rule_info['motion_command'] = consequence_result['graph'].motion_command(current_position, numpy.array(plan['position']), False)
 
         for human in self.settings['humans']:
             if not self.debugging():
-                current_position_human = self.robot_controller.tracker.get_position(human)[0:2] 
-                inter_robot_distance = numpy.sum((current_position - current_position_human)**2)**0.5
-                self.Experiment_Logger.write('Distance to ' + human + ' = ' + str(inter_robot_distance))
-                if inter_robot_distance < 0.5:#if too close to a human then stop the robot
-                    self.agent.add_belief('too_close_to_a_human')
-                    self.Experiment_Logger.write('too close')
-                    
-                if inter_robot_distance < self.settings['hearing_dist']:
-                    self.agent.drop_belief('warn_can_be_heard')
+                current_position_human = self.robot_controller.tracker.get_position(human)[0:2]
+            else:
+                current_position_human = self.settings['DEBUG_position_HUMAN_A']
+ 
+            inter_robot_distance = numpy.sum((numpy.array(current_position) - numpy.array(current_position_human))**2)**0.5
+            self.Experiment_Logger.write('Distance to ' + human + ' = ' + str(inter_robot_distance))
+            if inter_robot_distance < 0.5:#if too close to a human then stop the robot
+                self.agent.add_belief('too_close_to_a_human')
+                self.Experiment_Logger.write('too close')
+                
+            if inter_robot_distance < self.settings['hearing_dist']:
+                self.agent.add_belief('warn_can_be_heard')
 
         if self.agent.sensor_value('warning_given') == 1:
             if (not self.robot_controller.human_q.empty()):
                 msg = self.robot_controller.human_q.get()
-                self.robot_controller.end_flag.set()#debug
                 if msg['type'] == 'warn':
                     self.agent.add_belief('vocal_warning_acknowledged')
                 elif msg['type'] == 'point':
                     self.agent.add_belief('visual_warning_acknowledge')
                     
-            if all(i>7 for i in self.robot_controller.not_moving.values()):
+            if all(i>3 for i in self.robot_controller.not_moving.values()):
                 self.agent.add_belief('all_humans_stopped')
 
 

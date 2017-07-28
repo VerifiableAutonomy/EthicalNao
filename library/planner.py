@@ -8,7 +8,10 @@ Created on Tue Jul 18 17:01:52 2017
 
 from library import sim_eval
 import multiprocessing as mp
-
+from library import Consequence_para
+import GPyOpt
+import numpy
+import time
 #init the planner - split this between experiment.py and the init for this class
 #in the init it needs to create a CE instance
 #in the plan method need to create a sim_eval and run the optimiser
@@ -23,7 +26,7 @@ class Planner():
         self.plan = plan#plan type for this planner, ['move','warn','point']
         self.results_q = results_q#results_q = mp.JoinableQueue()
         self.end_flag = end_flag#end_flag from robot_controller, used to stop the plan process
-        self.CE = Consequence_para.ConsequenceEngine('ROBOT', self.settings['humans'], self.tracker, plan, self.settings, engine_name='CEngine_'+plan, plan_eval_q)
+        self.CE = Consequence_para.ConsequenceEngine('ROBOT', self.settings['humans'], self.tracker, plan, self.settings, plan_eval_q, engine_name='CEngine_'+plan)
         
         if 'self_obstacles' in self.settings:#if a starting set of objects the robot knows about self_obstacles ['TARGET_A','TARGET_B']
             self.CE.set_obstacles(self.settings['self_obstacles'])
@@ -33,24 +36,25 @@ class Planner():
             self.CE.set_dangers(self.settings['dangers'])#at experiment start the robot assumes humans are ignorant of all dangers so only adds them to its own map
     
         self.CE.set_speed_threshold(self.settings['speed_threshold'])
-        self.plan_process = mp.Process(target=self.plan)
+        self.plan_process = mp.Process(target=self.planning)
         
-    def plan(self):
+    def planning(self):
         #main planning process which in a loop calls plan optimiser which in turn invokes the CE
-        while not self.end_flag:
+        while not self.end_flag.is_set():
             plot = False#set plotting to false to start with as otherwise there will be too many plots!
             if 'DEBUG_position_ROBOT' in self.settings:
                 robot_location = self.settings['DEBUG_position_ROBOT']
             else:
                 robot_location = self.tracker.get_position('ROBOT')[0:2]
     
-            sim_evaluator = sim_eval.sim_evaluator(actor, self.plan, plot, self.CE, robot_location, self.settings)
+            sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, self.settings)
             
             if 'ROBOT_plan' in self.settings: 
                 plan_msg = self.settings['ROBOT_plan']
-                plan_msg['type'] = plan
+                plan_msg['type'] = self.plan
+                
                 opt_score = sim_evaluator.calculate_score(numpy.array([[ self.settings['ROBOT_plan']['position'][0],self.settings['ROBOT_plan']['speed'] ]]))
-                consequence_results = sim_evaluator.consequence_results
+                #consequence_results = sim_evaluator.consequence_results
                 #TODO set plan counter to 1: plan_counter is a shared parameter with the reasoner of how many messages to wait for before starting to compare
             else:
                 #set initial test points apprpriate to the situation
@@ -89,7 +93,8 @@ class Planner():
             
             self.results_q.put(sim_evaluator.current_situation)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
             #self.results_q.put(output_msg)#put the output msg into the q
-            #self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
+            if not self.end_flag.is_set():
+                self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
                             
 
 #==============================================================================

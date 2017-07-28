@@ -239,7 +239,7 @@ def main(argv):
         #CE_processes = {}
         #for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
         #for plan in ['move','warn','point']: CE_processes[plan].start()
-        for plan in ['move','warn','point']: planners[plan].start()
+        for plan in ['move','warn','point']: planners[plan].plan_process.start()
 
         #for _ in range(3):
         #    robot.results_q.put(1)

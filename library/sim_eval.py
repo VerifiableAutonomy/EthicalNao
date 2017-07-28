@@ -125,7 +125,7 @@ class sim_evaluator():
 #         failure_probs['wait'] = None#the longer the wait the less likely to fail
 #==============================================================================
         
-        return np.array([self.consequence_results['score']['total']])
+        return np.array([self.consequence_results['score'].total])
 
     def calc_Y(self, X):
         return self.grad*X+self.intercept
