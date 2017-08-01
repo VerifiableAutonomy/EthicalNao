@@ -9,6 +9,8 @@ import nao_agent
 import robot_control
 import numpy
 from library import Utilities
+import multiprocessing as mp
+import Queue 
 
 class ethical_engine():
     def __init__(self, robot_controller):
@@ -29,7 +31,7 @@ class ethical_engine():
         self.agent.add_condition_rule(self.agent.B('vocal_warning_acknowledged'), self.vocal_warning_recieved_rule)
         self.agent.add_condition_rule(self.agent.B('pointed_warning_acknowledged'), self.pointed_warning_recieved_rule)
         self.agent.add_condition_rule(self.agent.B('too_close_to_a_human'), self.stop_rule)
-        self.agent.add_condition_rule(self.agent.NOT(self.agent.B('human_in_danger')), self.stop_rule)
+        self.agent.add_condition_rule(self.agent.NOT(self.agent.B('human_in_danger')), self.stop_rule)#TODO the actual outcome should be the robot walks towards its goal
         self.agent.add_condition_rule(self.agent.B('all_humans_stopped'), self.stop_rule)
         self.agent.add_condition_rule(self.agent.AND(self.agent.B('at_goal'), self.agent.NOT(self.agent.B('stopped_moving'))), self.stop_moving_rule)
         self.agent.add_condition_rule(self.agent.NOT(self.agent.B('at_goal')), self.movement_rule)
@@ -135,11 +137,28 @@ class ethical_engine():
         
         #and Consequence engines
         consequence_results = []
-        while not self.plan_eval_q.empty():
-            consequence_results.append(self.plan_eval_q.get())
-            
+        #print 'EE q-size = ',self.plan_eval_q.qsize()
+        while True:
+            try:
+                consequence_results.append(self.plan_eval_q.get(block=False))
+                #print 'loop q-size = ',self.plan_eval_q.qsize()
+            except Queue.Empty:
+                #print 'loop exit q-size = ',self.plan_eval_q.qsize()
+                if self.plan_eval_q.qsize() == 0:
+                    break
+        
+#==============================================================================
+#         while self.plan_eval_q.qsize():
+#             try:
+#                 consequence_results.append(self.plan_eval_q.get())
+#             except Queue.Empty:
+#                 pass
+#==============================================================================
+        
+        #print 'EE_2 q-size = ',self.plan_eval_q.qsize()
+        #print 'q empty? ',self.plan_eval_q.empty()
         self.Experiment_Logger.write('Plans evaluated = ' + str(len(consequence_results)))
-                        
+        
 #==============================================================================
 #         if consequence_results['move']['inaction_danger']:#if inaction would be dangerous
 #             self.agent.add_belief('human_in_danger')
@@ -160,7 +179,6 @@ class ethical_engine():
                 plan = consequence_result['plan_params']
             else:#if all the plans fail then robot just walks to its own objective
                 plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-                consequence_result = {'graph':consequence_results[0]['graph']}
             rule_info['closest_danger'] = no_intervention['closest_danger']
                 
                                       
@@ -194,7 +212,7 @@ class ethical_engine():
         self.agent.drop_belief('warn_can_be_heard')
             
         rule_info['current_position'] = current_position
-        rule_info['motion_command'] = consequence_result['graph'].motion_command(current_position, numpy.array(plan['position']), False)
+        rule_info['motion_command'] = self.robot_controller.planners[plan['type']].CE.graphs['ROBOT'].motion_command(current_position, numpy.array(plan['position']), False)
 
         for human in self.settings['humans']:
             if not self.debugging():

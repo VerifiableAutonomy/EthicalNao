@@ -38,7 +38,7 @@ class ConsequenceEngine():
         self.__self_name = self_name
         self.__engine_name = engine_name
         self.__actor_names = actor_names
-        self.__graphs = {}
+        self.graphs = {}
 
         self.__dangers = []
         self.__danger_locations = None
@@ -57,10 +57,10 @@ class ConsequenceEngine():
 
     def make_graph(self, actor, data=False, step=None):
         graph = PathPlanning.Planner(self.__tracker, data=data, step=step)
-        self.__graphs[actor] = copy.copy(graph)
+        self.graphs[actor] = copy.copy(graph)
     
     def motion_command(self, goal, plot=False):
-        g = self.__graphs[self.__self_name]
+        g = self.graphs[self.__self_name]
         start = self.__tracker.get_position(self.__self_name)[0:2]
         result = g.motion_command(start, goal, plot)
         return result
@@ -81,7 +81,7 @@ class ConsequenceEngine():
     def add_obstacles(self, obstacles, actor=None):
         if type(obstacles) is not list: obstacles = [obstacles]
         if actor == 'self': actor = self.__self_name
-        g = self.__graphs[actor]
+        g = self.graphs[actor]
         current_obstacles = g.get_obstacles()
         new_obstacles = current_obstacles + obstacles
         self.set_obstacles(new_obstacles, actor)
@@ -91,12 +91,12 @@ class ConsequenceEngine():
         if actor == 'self': actor = self.__self_name
         if not type(obstacles) == list: obstacles = [obstacles]
         obstacles = obstacles[:]
-        g = copy.copy(self.__graphs[actor])
+        g = copy.copy(self.graphs[actor])
         g.set_obstacles(obstacles)
-        self.__graphs[actor] = copy.copy(g)
+        self.graphs[actor] = copy.copy(g)
         
     def change_step(self, actor, step):
-        self.__graphs[actor].set_step(step)
+        self.graphs[actor].set_step(step)
 
     def world2actor(self, agent_name, world_x, world_y):
         '''
@@ -171,7 +171,7 @@ class ConsequenceEngine():
             start = numpy.array(start[:2])
         
         #start = [0,0]#debug start actor at 0,0
-        g = self.__graphs[actor]
+        g = self.graphs[actor]
         result = g.find_path(start, goal, plot)
         result['actor'] = actor
         result['start'] = start
@@ -331,21 +331,21 @@ class ConsequenceEngine():
          
         score = Utilities.Ethical_Score()#create score obj, values default to fail case
         warn_dist = numpy.min(rel_dists)
-        print warn_idx
-        print intercept_idx
-        print rel_dists
-        print human_eval['path']
-        print robot_eval['path']
+        #print warn_idx
+        #print intercept_idx
+        #print rel_dists
+        #print human_eval['path']
+        #print robot_eval['path']
         if intercept_idx == None and warn_idx <> None and not robot_eval['in_danger'] and warn_dist < self.settings['hearing_dist']:
             #add the warned danger to a temp copy of the human's knowledge and re-predict the human path
-            current_graph = self.__graphs[actor]
+            current_graph = self.graphs[actor]
             current_graph_data = current_graph.get_data()#get a copy of the currently stored graph data
             #add the warned obstacle to it
             self.add_obstacles(human_eval['closest_danger'], actor)#assumes the warned danger is the one closest to the human
             #re-evaluate human path
             human_eval_updated = self.predict_and_evaluate(actor, human_eval['goal'])#, plot, write_output)
             self.make_graph(actor, data=current_graph_data)#restore the graph
-            self.__graphs[actor].plot_network(save=self.settings['session_path']+'plots')
+            self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
             #there is no wait for ack in plan simulation
             score.closest_danger = human_eval_updated['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
             #get distance walked to the intercept point from the results dictionary of the robot
@@ -401,7 +401,7 @@ class ConsequenceEngine():
         if intercept_idx == None and point_idx <> None and point_dist < self.settings['pointing_dist'] and not robot_eval['in_danger']:
        
             #so add the warned danger to a temp copy of the human's knowledge and re-predict the human path
-                current_graph = self.__graphs[actor]
+                current_graph = self.graphs[actor]
                 current_graph_data = current_graph.get_data()#get a copy of the currently stored graph data
                 #add the warned obstacle to it
                 self.add_obstacles(plan_params['point_pos'], actor)#assumes the warned danger is the one closest to the human
@@ -409,7 +409,7 @@ class ConsequenceEngine():
                 human_eval_updated = self.predict_and_evaluate(actor, human_eval['goal'])#, plot, write_output)
                 if not human_eval_updated['in_danger']:#if the plan outcome does not keep the human from danger leave score as max
                     self.make_graph(actor, data=current_graph_data)#restore the graph
-                    self.__graphs[actor].plot_network(save=self.settings['session_path']+'plots')
+                    self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
                     #there is no wait for ack in plan simulation
                     
                     score.closest_danger = human_eval_updated['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
@@ -537,7 +537,7 @@ class ConsequenceEngine():
             score = actor + ' goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' CD ' + str(result.closest_danger) + ' WD ' + str(result.robot_walking_dist) + ' S ' + str(result.robot_speed) + ' DD ' + str(result.danger_distance)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) +' Total ' + str(result.total)
         else:
             score = str(result)
-        self.__logger.write(score)
+        
        
         
 
@@ -576,7 +576,10 @@ class ConsequenceEngine():
         results['inter_rob_dists'] = robot_actor_dists#return the list of inter-robot dists so whether to warn can be evaluated by the controller
         
         #put the plan score result in the message q
-        self.plan_eval_q.put({'result':result,'plan_params':plan_params, 'graph':self.__graphs[self.__self_name]})
+        self.plan_eval_q.put({'result':result,'plan_params':plan_params})#, 'graph':self.graphs[self.__self_name]
+        print 'q-size = ',self.plan_eval_q.qsize()
+
+        self.__logger.write(score)
         return results
 
 

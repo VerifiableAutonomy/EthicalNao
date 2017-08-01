@@ -179,20 +179,18 @@ def main(argv):
     human_q = mp.Queue()
     results_q = mp.JoinableQueue()#queue for communication between the CE processes and the manager process
     plan_eval_q = mp.Queue()
+    end_flag = mp.Event()
+    
+    planners = {}
+    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, end_flag)
+
     #create the robot object
     Experiment_Logger.write('Generating Ethical Robot')
-    robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings, results_q, plan_eval_q)
+    robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings, results_q, plan_eval_q,planners)
     #start the CE manager process,- this will cause the robot to walk to it's starting place and block until it gets there
     #it then sits and waits for messages from the CE processes so can be safely started before the CE processes
     #it compares the optimal plan suggested by all the CE processes and selects which to execute and instruct ther robot
-    robot.CE_manager.start() 
-    
-    
-    
-    
-    planners = {}
-    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, robot.end_flag)
-        
+    robot.CE_manager.start()         
         
     #do the same for the human(s)
     if 'DEBUG_goal_HUMAN_A' not in settings:
@@ -244,7 +242,7 @@ def main(argv):
         #for _ in range(3):
         #    robot.results_q.put(1)
         robot.CE_manager.join()
-        
+        #for plan in ['move','warn','point']: planners[plan].plan_process.join()
         
         Experiment_Logger.write('Loop exited')
              

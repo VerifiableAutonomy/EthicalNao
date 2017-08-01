@@ -36,7 +36,7 @@ from library import Consequence_para
 class robot_controller():
 #class for control of the ethical robot
 #It has one process that handles movement commands and plan comparison and 3 processes that invoke CE instances, 1 for each plan type so plans can be simultaneously evaluated
-    def __init__(self, tracker, robot_q, human_q, session_path, settings, results_q, plan_eval_q, ip_robot = '192.168.20.224'):
+    def __init__(self, tracker, robot_q, human_q, session_path, settings, results_q, plan_eval_q, planners, ip_robot = '192.168.20.224'):
         self.tracker = tracker
         self.log_file = session_path
         #if self.tracker:
@@ -46,6 +46,7 @@ class robot_controller():
         #self.ack = threading.Event()
         self.settings = settings
         self.name = 'ROBOT'
+        self.planners = planners
         self.ip_robot = ip_robot
         self.Experiment_Logger = Utilities.Logger('ROBOT_control')
         self.Experiment_Logger.write('Generating robot objects')
@@ -89,7 +90,7 @@ class robot_controller():
         self.plan_eval_q = plan_eval_q
         
         self.CE_manager = mp.Process(target=self.CE_manager_proc)#manager process that decides on the plan to execute, and controls the robot
-        self.end_flag = mp.Event()
+        self.end_flag = self.planners['move'].end_flag
         self.ethical_engine = ethical_engine.ethical_engine(self)
     
     
@@ -250,19 +251,22 @@ class robot_controller():
                             self.not_moving[human] = self.not_moving[human] + 1
                             self.Experiment_Logger.write('human speed ' + str(self.tracker.get_speed(human)))
                         else:
-                            self.not_moving[human] = 0
-                    
-                
-            if self.end_flag.is_set():
+                            self.not_moving[human] = 0                 
+            else:#end flag is set so clean up
                 if 'DEBUG_position_ROBOT' not in self.settings:
                     robot.clean_up()
                 for _ in range(3):
                     self.results_q.task_done()
                 break#CE thread will run until all robots are stationary or 1000 iteration steps
             
+            if sim_steps < self.settings['exp_dur']-1:#if not the last iteration 
+                for _ in range(3):
+                    self.results_q.task_done()#let the CE processes start on producing the next msg set
+                    
+        if not self.end_flag.is_set():
+            self.end_flag.set()               
             for _ in range(3):
-                self.results_q.task_done()#let the CE processes start on producing the next msg set
-        self.end_flag.set()               
+                self.results_q.task_done()
         
 #==============================================================================
 #     def CE_process(self, plan):

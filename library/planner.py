@@ -12,6 +12,7 @@ from library import Consequence_para
 import GPyOpt
 import numpy
 import time
+import Utilities
 #init the planner - split this between experiment.py and the init for this class
 #in the init it needs to create a CE instance
 #in the plan method need to create a sim_eval and run the optimiser
@@ -27,6 +28,7 @@ class Planner():
         self.results_q = results_q#results_q = mp.JoinableQueue()
         self.end_flag = end_flag#end_flag from robot_controller, used to stop the plan process
         self.CE = Consequence_para.ConsequenceEngine('ROBOT', self.settings['humans'], self.tracker, plan, self.settings, plan_eval_q, engine_name='CEngine_'+plan)
+        self.Experiment_Logger = Utilities.Logger(plan + '_planner')
         
         if 'self_obstacles' in self.settings:#if a starting set of objects the robot knows about self_obstacles ['TARGET_A','TARGET_B']
             self.CE.set_obstacles(self.settings['self_obstacles'])
@@ -63,9 +65,9 @@ class Planner():
                 x_mid = (sim_evaluator.x_bounds[1]+sim_evaluator.x_bounds[0])/2
                 x_lower_q = x_mid - x_quart
                 x_upper_q = x_mid + x_quart
-                #X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25)])#only 3 points at the lower quartile point, the mid-point, and upper quartile, all at base speed
+                X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25)])#only 3 points at the lower quartile point, the mid-point, and upper quartile, all at base speed
                 #X_initial = numpy.array([(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 2 
-                X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25),(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 3 
+                #X_initial = numpy.array([(x_lower_q,0.25),(x_mid,0.25),(x_upper_q,0.25),(x_lower_q,0.5),(x_mid,0.5),(x_upper_q,0.5),(x_lower_q,0.1),(x_mid,0.1),(x_upper_q,0.1)])#set 3 
                 
                 #will need to test with other initial point sets, incl with different speeds
                 bounds =[{'name': 'X', 'type': 'continuous', 'domain': sim_evaluator.x_bounds},
@@ -81,20 +83,19 @@ class Planner():
                 end = time.time()
                 init_time = end - start#debug
                 #plan_opt.model.model.kern.variance.constrain_fixed(2.5)
-                #self.Experiment_Logger.write(plan + ' GP init time = ' + str(init_time))#TODO sort logging out
+                self.Experiment_Logger.write(self.plan + ' GP init time = ' + str(init_time))#TODO sort logging out
                 plan_opt.run_optimization(max_iter=self.settings['max_iter'],verbosity=False)
                 opt_time = time.time() - end#debug
                 
-                #self.Experiment_Logger.write(plan + ' GP opt time = ' + str(opt_time) + ' iterations= ' + str(len(plan_opt.X-len(X_initial))))
-                
+                self.Experiment_Logger.write(self.plan + ' GP opt time = ' + str(opt_time) + ' iterations= ' + str(len(plan_opt.X)))
+                #print 'iter ',len(plan_opt.X)
                 #TODO decide if we want the planner to return what it thinks is the optimal plan
                 #opt_vals = plan_opt.x_opt
                 #opt_score = plan_opt.fx_opt[0]                
             
             self.results_q.put(sim_evaluator.current_situation)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
             #self.results_q.put(output_msg)#put the output msg into the q
-            if not self.end_flag.is_set():
-                self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
+            self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
                             
 
 #==============================================================================
