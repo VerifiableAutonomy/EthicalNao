@@ -65,7 +65,7 @@ class Robot:
         ## Bind robot proxies
         self.logger.write('Binding motion proxy')
         self.motion = ALProxy("ALMotion", address, 9559)
-        #debug self.motion.setStiffnesses("Body", 1.0)
+        self.motion.setStiffnesses("Body", 1.0)#debug 
         self.logger.write('Binding voice proxy')
         self.voice = ALProxy("ALTextToSpeech", address, 9559)
         self.motion_configuration = {}
@@ -104,7 +104,7 @@ class Robot:
 
         ## set head position
         self.logger.write('Set head orientation')
-        #debug self.set_head_position()
+        self.set_head_position()#debug 
         ## for motion thread
         self.exit_motion_flag = False
         self.motion_process = threading.Thread(target=self.execute_motion, args=(0, 0, False))

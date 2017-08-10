@@ -146,7 +146,7 @@ def main(argv):
     shared_d_s = mp.Manager().dict({})
     tracked_objects = settings['tracked_targets'] + settings['humans'] + ['ROBOT']
     #create the sharable tracker
-    if 'DEBUG_goal_HUMAN_A' in settings:
+    if 'DEBUG_tracker' in settings:
         Tracker = None
     else:
         Tracker = Utilities.Tracker(tracked_objects, settings['virtual_objects'], shared_d_p, shared_d_v, shared_d_r, shared_d_s)    
@@ -298,12 +298,12 @@ def main(argv):
 #########################
 
     #all robots should now be in position so start them going
-    for plan in ['move','warn','point']: robot.CE_processes[plan].start()#start the CE processes
+    for plan in ['move','warn','point']: planners[plan].plan_process.start()#start the CE processes
     for _ in range(len(settings['humans'])+1): robot_q.put('GO!')    
 
     #Wait for all robot control processes to end before grabbing log data
     for human in settings['humans']: humans[human].plan_process.join()
-    for plan in ['move','warn','point']: robot.CE_processes[plan].join()
+    #for plan in ['move','warn','point']: robot.CE_processes[plan].join()
     robot.CE_manager.join()
     
     

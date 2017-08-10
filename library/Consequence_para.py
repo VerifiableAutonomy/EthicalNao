@@ -141,6 +141,9 @@ class ConsequenceEngine():
         inferred_goal = objects[index]
 
         if speed_actor < self.__speed_threshold: inferred_goal = actor
+        
+        if isinstance(inferred_goal,basestring): inferred_goal = self.__tracker.get_position(inferred_goal)
+        
         if minimal_return: return inferred_goal
 
         velocity_actor_norm = Utilities.normalize(velocity_actor) * 0.25
@@ -159,16 +162,18 @@ class ConsequenceEngine():
         result['objects'] = objects
         return result
 
-    def predict_path(self, actor, goal=None, plot=False):
+    def predict_path(self, actor, actor_start=None, goal=None, plot=False):
         if goal is None: goal = self.infer_actor_goal(actor, minimal_return=True)
         
         if type(goal) == str: self.__tracker.get_position(goal)
         
         if 'DEBUG_position_' + actor in self.settings:
             start = self.settings['DEBUG_position_' + actor]
-        else:
+        elif not actor_start:
             start = self.__tracker.get_position(actor)
             start = numpy.array(start[:2])
+        else:
+            start = actor_start
         
         #start = [0,0]#debug start actor at 0,0
         g = self.graphs[actor]
@@ -222,10 +227,10 @@ class ConsequenceEngine():
         #evaluation['total'] = MAX_DIST - self.settings['W_danger_distance']*evaluation['danger_distance']
         return evaluation
 
-    def predict_and_evaluate(self, actor,goal=None, plot=False, write_output=False):
+    def predict_and_evaluate(self, actor, start=None, goal=None, plot=False, write_output=False):
         #only for use by the human - the robot has seperate functions depending on plan
         start = time.time()
-        prediction = self.predict_path(actor, goal, plot)
+        prediction = self.predict_path(actor, start, goal, plot)
         evaluation = self.evaluate_path(prediction)
         text = 'RESULT P&E: ' + prediction['actor'] + ', '
         text += str(prediction['goal']) + ', '
@@ -343,9 +348,10 @@ class ConsequenceEngine():
             #add the warned obstacle to it
             self.add_obstacles(human_eval['closest_danger'], actor)#assumes the warned danger is the one closest to the human
             #re-evaluate human path
-            human_eval_updated = self.predict_and_evaluate(actor, human_eval['goal'])#, plot, write_output)
+            human_eval_updated = self.predict_and_evaluate(actor, start = human_eval['start'], goal = human_eval['goal'])#, plot, write_output)
+            #start = time.time()
             self.make_graph(actor, data=current_graph_data)#restore the graph
-            self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
+            #self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
             #there is no wait for ack in plan simulation
             score.closest_danger = human_eval_updated['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
             #get distance walked to the intercept point from the results dictionary of the robot
@@ -406,10 +412,10 @@ class ConsequenceEngine():
                 #add the warned obstacle to it
                 self.add_obstacles(plan_params['point_pos'], actor)#assumes the warned danger is the one closest to the human
                 #re-evaluate human path
-                human_eval_updated = self.predict_and_evaluate(actor, human_eval['goal'])#, plot, write_output)
+                human_eval_updated = self.predict_and_evaluate(actor, start = human_eval['start'], goal = human_eval['goal'])#, plot, write_output)
                 if not human_eval_updated['in_danger']:#if the plan outcome does not keep the human from danger leave score as max
                     self.make_graph(actor, data=current_graph_data)#restore the graph
-                    self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
+                    #self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
                     #there is no wait for ack in plan simulation
                     
                     score.closest_danger = human_eval_updated['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
@@ -432,8 +438,8 @@ class ConsequenceEngine():
                                         self.settings['W_wait_time']* score.wait_time - \
                                         self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
                                         self.settings['W_robot_obj_dist']* score.robot_obj_dist
-            #else:
-                #pass
+                else:
+                    self.__logger.write('human still in danger')
                 
             
         return score
@@ -455,7 +461,7 @@ class ConsequenceEngine():
         #return the list of distances            
         return result
 
-    def predict_all(self, actor, plan_params, Robot_Plan=False, plot=False):
+    def predict_all(self, actor, plan_params, robot_location, human_location, human_goal, Robot_Plan=False, plot=False):
         #plan_params is the dictionary of parameters for all 3 plan types as suggested by the GP
         start = time.time()
         if isinstance(plot,basestring):
@@ -464,9 +470,9 @@ class ConsequenceEngine():
             plot_cs = plot
 
         if 'DEBUG_goal_HUMAN_A' in self.settings:
-            current_situation = self.predict_and_evaluate(actor, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot_cs)
+            current_situation = self.predict_and_evaluate(actor, start = human_location, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot_cs)
         else:
-            current_situation = self.predict_and_evaluate(actor, plot=plot_cs)#use the current plan graph to assess no plan situation        
+            current_situation = self.predict_and_evaluate(actor, start = human_location, goal=human_goal, plot=plot_cs)#use the current plan graph to assess no plan situation        
         
         no_action = 'No intervention:' + actor + ' Goal ' + str(current_situation['goal']) + ' Danger ' + str(current_situation['in_danger']) + ' C_Danger ' + str(current_situation['closest_danger']) + ' d_dist ' + str(current_situation['danger_distance'])
         self.__logger.write(no_action)        
@@ -486,7 +492,7 @@ class ConsequenceEngine():
         if Robot_Plan:
             robot_plan = Robot_Plan
         else:
-            robot_plan = self.predict_path(self.__self_name, goal=robot_goal, plot=plot_rp)#g.find_path(start, plan_params['position'], plot)
+            robot_plan = self.predict_path(self.__self_name, start = robot_location, goal=robot_goal, plot=plot_rp)#g.find_path(start, plan_params['position'], plot)
         #print self.__plan
         #print robot_goal
         #print robot_plan['path']

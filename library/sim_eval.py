@@ -26,21 +26,20 @@ import numpy as np
 ROBOT_MAX_S = 0.5
 
 class sim_evaluator():
-    def __init__(self, actor, plan, plot, CE, robot_location, settings):
+    def __init__(self, actor, plan, plot, CE, robot_location, human_location, human_goal, settings):
         self.actor = actor#which human is being evaluated
         self.plot = plot#plot file string
         self.CE = CE#pass in the CE that will be called by the wrapper class
         self.plan = plan#plan type to be evaluated, a CE object only evaluates plans of one type
+        self.robot_location = robot_location
+        self.human_location = human_location
+        self.human_goal = human_goal
         self.settings = settings
         self.consequence_results = None
         self.plan_params = {}
         
         #self.max_score = max_score#pass in the max_score that corresponds to a failed plan
-        if 'DEBUG_goal_HUMAN_A' in self.settings:
-            self.current_situation = CE.predict_and_evaluate(actor, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot)#.replace('XXX', actor)+actor)
-        else:
-            #TODO currently this cheats as when it is called the human isn't going fast enough to infer a goal
-            self.current_situation = CE.predict_and_evaluate(actor, goal=self.settings[self.actor + '_goal'], plot=plot)#.replace('XXX', actor)+actor)
+        self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=self.human_goal, plot=plot)#.replace('XXX', actor)+actor)
         #calculate the max and min points on the human path that the robot can reach at max speed to set the bounds for the GP
         #for all plans this is slightly more restrictive than needed as robot won't need to walk all the way to the human path to succeed, esp. with warn and point
         distances_to_path = Utilities.distance2points(np.array(robot_location), self.current_situation['path'])
@@ -99,7 +98,14 @@ class sim_evaluator():
             step = 0.25 * (human_speed/self.plan_params['speed'])#calculate smaller step size
             self.CE.change_step(human,step)#reduce the step size for the robot   
 
-        robot_plan = self.CE.predict_path('ROBOT', goal=self.plan_params['position'], plot=False)
+        robot_plan = self.CE.predict_path('ROBOT', actor_start = self.robot_location, goal=self.plan_params['position'], plot=False)
+        #set the robot location one step along the predicted path so it uses information based on where the robot will be when planning is finished
+        self.robot_location = robot_plan['path'][1]
+
+        try:#if there is a current situation simulation set the human to being one step along the path in the same way as the robot_location
+            self.human_location = self.current_situation['path'][1]
+        except:
+            pass
         
         if self.plan <> 'move':
             dists_to_path = Utilities.distance2points(self.plan_params['position'], robot_plan['path'])
@@ -111,7 +117,7 @@ class sim_evaluator():
             except:#if no intercept it will raise an exception and set the search return to None
                 pass#this should never happen as robot path will enable it to get within earshot guaranteed, but if it can't position will be unchanged
         #have the CE calculate the score
-        self.consequence_results = self.CE.predict_all(self.actor, self.plan_params,Robot_Plan=robot_plan, plot=self.plot)
+        self.consequence_results = self.CE.predict_all(self.actor, self.plan_params, self.robot_location, self.human_location, self.human_goal, Robot_Plan=robot_plan, plot=self.plot)
         
 #==============================================================================
 #         if consequence_results['total'] == self.max_score:

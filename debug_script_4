@@ -28,14 +28,14 @@ max_speed 0.5
 #robot pre-determined plan used for debugging
 #ROBOT_plan {'type':'move','angle':0,'position':[0,0],'point_pos':(0,0),'speed':0.3}
 #ROBOT_plan_move {'type':'move','angle':0,'position':[0,0],'point_pos':(0,0),'speed':0.3}
-#ROBOT_plan {'type':'warn','angle':0,'position':[0.5,-0.5],'point_pos':(0,0),'speed':0.25}
+ROBOT_plan {'type':'warn','angle':0,'position':[0,0],'point_pos':(0,0),'speed':0.25}
 #ROBOT_plan_point {'type':'point','angle':0,'position':[-0.5,0],'point_pos':(0,0),'speed':0.3}
 tracked_targets ['TARGET_A']
 virtual_objects {}
 speed_threshold 0.02
 update_rate 1
 camera_rate 0.5
-exp_dur 1
+exp_dur 6
 do_plotting True
 plot_template False
 MAX_SCORE 10
@@ -52,7 +52,8 @@ W_robot_obj_dist 1
 acquisition_type 'EI'
 max_iter 3
 #DEBUG mode settings
-DEBUG_position_ROBOT (0.5,-0.5)
-DEBUG_position_HUMAN_A (0,0)
+DEBUG_position_ROBOT (1,-1)
+DEBUG_position_HUMAN_A (-1,-1)
 DEBUG_velocity_human (0.177,0.177)
 DEBUG_goal_HUMAN_A (1,1)
+DEBUG_tracker False

@@ -170,10 +170,10 @@ class robot_controller():
         if self.tracker:
             robot = Robot.Robot(self.ip_robot, 'ROBOT', self.tracker)
             robot.speed_factor = self.settings['ROBOT_speed_factor']
-            #debug robot.update_background_checks(0, False)
-            #debug robot.update_background_checks(2, False)
-            #debug robot.go_to_position(self.settings['ROBOT_start'][0], self.settings['ROBOT_start'][1], blocking=True)
-            #debug robot.go_to_orientation(self.settings['ROBOT_start_angle'], blocking=True)
+            robot.update_background_checks(0, False)
+            robot.update_background_checks(2, False)
+            robot.go_to_position(self.settings['ROBOT_start'][0], self.settings['ROBOT_start'][1], blocking=True)
+            robot.go_to_orientation(self.settings['ROBOT_start_angle'], blocking=True)
             #robot moving blocks until in position, then exchange messages to sync experiment start
         self.human_q.put(self.name + ' ready to start')#signal to the supervisor robot is in position
         go_msg = self.robot_q.get()
@@ -243,7 +243,7 @@ class robot_controller():
                 try:
                     time.sleep(self.settings['update_rate']-dur)
                 except:
-                    pass
+                    self.Experiment_Logger.write('long dur =' + str(dur))
                 
                 if self.tracker:
                     for human in self.settings['humans']:#for each human in the experiment
@@ -256,15 +256,25 @@ class robot_controller():
                 if 'DEBUG_position_ROBOT' not in self.settings:
                     robot.clean_up()
                 for _ in range(3):
-                    self.results_q.task_done()
+                    try:
+                        self.results_q.task_done()
+                    except ValueError:
+                        print 'no more task dones needed'
                 break#CE thread will run until all robots are stationary or 1000 iteration steps
             
-            if sim_steps < self.settings['exp_dur']-1:#if not the last iteration 
-                for _ in range(3):
-                    self.results_q.task_done()#let the CE processes start on producing the next msg set
-                    
+                
         if not self.end_flag.is_set():
-            self.end_flag.set()               
+            self.end_flag.set()  
+            print 'clean up'
+            if 'DEBUG_position_ROBOT' not in self.settings:
+                robot.clean_up()
+            #clean up the results_q
+            msgs = self.ethical_engine.msgs
+            while msgs < 3:
+                print msgs
+                result = self.results_q.get()
+                msgs = msgs + 1            
+                
             for _ in range(3):
                 self.results_q.task_done()
         
