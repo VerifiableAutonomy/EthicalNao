@@ -6,7 +6,8 @@ Created on Thu May 18 17:14:42 2017
 @author: paul
 """
 import Utilities
-import numpy as np
+import numpy as np#
+import sys
 
 #wrapper for predict all to accept and return numpy arrays
 
@@ -39,6 +40,7 @@ class sim_evaluator():
         self.plan_params = {}
         
         #self.max_score = max_score#pass in the max_score that corresponds to a failed plan
+        #print 'hum_loc ',self.human_location
         self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=self.human_goal, plot=plot)#.replace('XXX', actor)+actor)
         #calculate the max and min points on the human path that the robot can reach at max speed to set the bounds for the GP
         #for all plans this is slightly more restrictive than needed as robot won't need to walk all the way to the human path to succeed, esp. with warn and point
@@ -51,7 +53,15 @@ class sim_evaluator():
         
         #search x_lims to find range of values for x
         x_lim = np.array(x_lim)
-        self.x_bounds = (np.min(x_lim),np.max(x_lim))
+        try:
+            self.x_bounds = (np.min(x_lim),np.max(x_lim))
+        except:
+            if plan == 'move':
+                print 'hum loc ', self.human_location
+                print 'hum goal ', self.human_goal
+                print 'hum path ', self.current_situation['path']
+                print 'dists ', distances_to_path
+            
         #use path to estimate line parameters so Ys can be calculated from suggested Xs
         #print self.current_situation['path']
         if self.current_situation['path'][0][1] == self.current_situation['path'][-1][1]:
@@ -117,7 +127,7 @@ class sim_evaluator():
             except:#if no intercept it will raise an exception and set the search return to None
                 pass#this should never happen as robot path will enable it to get within earshot guaranteed, but if it can't position will be unchanged
         #have the CE calculate the score
-        self.consequence_results = self.CE.predict_all(self.actor, self.plan_params, self.robot_location, self.human_location, self.human_goal, Robot_Plan=robot_plan, plot=self.plot)
+        self.consequence_results = self.CE.predict_all(self.actor, self.plan_params, self.robot_location, self.human_location, self.human_goal, self.current_situation, Robot_Plan=robot_plan, plot=self.plot)
         
 #==============================================================================
 #         if consequence_results['total'] == self.max_score:

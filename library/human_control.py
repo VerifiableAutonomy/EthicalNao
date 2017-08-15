@@ -71,7 +71,7 @@ class human_controller():
         start_msg = self.robot_q.get()#block on the signal sent via the robot q all are ready to start the experiment
         self.Experiment_Logger.write(start_msg)
         
-        for sim_steps in range(1000):
+        for sim_steps in range(self.settings['exp_dur']):
             start=time.time()
             human_goal = self.settings[self.name + '_goal']
             
@@ -145,4 +145,7 @@ class human_controller():
                 time.sleep(self.settings['update_rate']-dur)
             except:
                 pass
+            
+        if 'DEBUG_position_HUMAN_A' not in self.settings:
+            robot.clean_up()
             

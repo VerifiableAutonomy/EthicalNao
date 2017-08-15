@@ -131,7 +131,7 @@ def main(argv):
     
     Experiment_Logger.write('Running script: ' + settings['session_name'])
 
-    Experiment_Logger.write('Generating camera object')
+    #Experiment_Logger.write('Generating camera object')
     
     #Camera = Webcam.Webcam()
 
@@ -243,7 +243,8 @@ def main(argv):
         #    robot.results_q.put(1)
         robot.CE_manager.join()
         #for plan in ['move','warn','point']: planners[plan].plan_process.join()
-        
+        Tracker.stop()
+
         Experiment_Logger.write('Loop exited')
              
         for f in files:

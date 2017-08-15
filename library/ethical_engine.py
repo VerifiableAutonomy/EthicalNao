@@ -47,7 +47,7 @@ class ethical_engine():
 #        Rules for Warnings
     def vocal_warning_rule(self, robot, rule_info):
         if not (self.debugging()):
-            self.robot_controller.vocal_warning_action(self, robot, rule_info)
+            self.robot_controller.vocal_warning_action(robot, rule_info)
         #if at warn location give warning and signal to human warning given
         current_position = rule_info['current_position']
         self.agent.add_belief('warning_given')
@@ -57,13 +57,13 @@ class ethical_engine():
         
     def vocal_warning_recieved_rule(self, robot, rule_info):
         if not (self.debugging()):
-            self.ce.vocal_warning_received_action(self, robot, rule_info)
+            self.ce.vocal_warning_received_action(robot, rule_info)
         #robot.speak_text('vocal warning heard')#debug
         print 'vocal_warning_recieved_rule'
      
     def pointed_warning_rule(self, robot, rule_info):
         if not (self.debugging()):
-            self.robot_controller.pointed_warning_action(self, robot, rule_info)
+            self.robot_controller.pointed_warning_action(robot, rule_info)
         #if at warn location give warning and signal to human warning given
         current_position = rule_info['current_position']
         self.agent.add_belief('warning_given')
@@ -73,7 +73,7 @@ class ethical_engine():
         
     def pointed_warning_recieved_rule(self, robot, rule_info):
         if not (self.debugging()):
-            self.ce.pointed_warning_received_action(self, robot, rule_info)
+            self.ce.pointed_warning_received_action(robot, rule_info)
 #        robot.speak_text('pointed warning heard')#debug
         print 'pointed_warning_recieved_rule'
        
@@ -97,7 +97,7 @@ class ethical_engine():
 #        Rules for motion
     def movement_rule(self, robot, rule_info):
         if not (self.debugging()):
-            self.robot_controller.move_to_target_action(self, robot, rule_info)            
+            self.robot_controller.move_to_target_action(robot, rule_info)            
         print 'movement_rule'
         
 #==============================================================================
@@ -214,16 +214,16 @@ class ethical_engine():
             if 'ROBOT_plan' in self.settings: self.plan = self.settings['ROBOT_plan']#predefined set plan from settings file
             ############################################
     
-            rule_info['plan'] = self.plan
-            self.agent.drop_belief('warning_plan')
-            self.agent.drop_belief('pointing_plan')
-            if self.plan['type'] == 'warn':
-                self.agent.add_belief('warning_plan')                                  
-            elif self.plan['type'] == 'point':
-                self.agent.add_belief('pointing_plan')
+        rule_info['plan'] = self.plan
+        self.agent.drop_belief('warning_plan')
+        self.agent.drop_belief('pointing_plan')
+        if self.plan['type'] == 'warn':
+            self.agent.add_belief('warning_plan')                                  
+        elif self.plan['type'] == 'point':
+            self.agent.add_belief('pointing_plan')
             
         if not (self.debugging()):
-            current_position = self.tracker.get_position(self.name)[0:2]
+            current_position = self.robot_controller.tracker.get_position('ROBOT')[0:2]
         else:
             current_position = self.settings['DEBUG_position_ROBOT']
             
@@ -263,8 +263,10 @@ class ethical_engine():
                 elif msg['type'] == 'point':
                     self.agent.add_belief('visual_warning_acknowledge')
                     
-            if all(i>3 for i in self.robot_controller.not_moving.values()):
-                self.agent.add_belief('all_humans_stopped')
+        if all(i>3 for i in self.robot_controller.not_moving.values()):
+            self.agent.add_belief('all_humans_stopped')
+        else:
+            self.agent.drop_belief('all_humans_stopped')
 
 
         return rule_info

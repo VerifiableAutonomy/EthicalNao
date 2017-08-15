@@ -63,11 +63,19 @@ class Planner():
                     #TODO currently this cheats as when it is called the human isn't going fast enough to infer a goal
                     #human_goal=self.settings['HUMAN_A_goal']
             #print 'h goal ',human_goal
-            if human_goal <> 'HUMAN_A':    
-                sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, human_location, human_goal, self.settings)
-                in_danger = sim_evaluator.current_situation['in_danger']
+            self.Experiment_Logger.write('Human goal ' + str(human_goal))
+            #if self.plan == 'move':
+            #    print 'hg ',human_goal
+            #    print 'hl ',human_location
+            if human_goal <> None:
+                    sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, human_location, human_goal, self.settings)
+                    in_danger = sim_evaluator.current_situation['in_danger']
+                    danger_distance = sim_evaluator.current_situation['danger_distance']
+                    closest_danger = sim_evaluator.current_situation['closest_danger']
             else:
                 in_danger = False
+                danger_distance = 100
+                closest_danger = None
                 
             if in_danger:#only run the planner if the human is in danger
                 if 'ROBOT_plan' in self.settings: 
@@ -113,10 +121,11 @@ class Planner():
                     #TODO decide if we want the planner to return what it thinks is the optimal plan
                     #opt_vals = plan_opt.x_opt
                     #opt_score = plan_opt.fx_opt[0]                
+            
                 
                 #self.results_q.put(sim_evaluator.current_situation)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
             #always send a results message even if no planning happened so the ethical engine knows whether or not the human is in danger
-            self.results_q.put({'danger_distance':sim_evaluator.current_situation['danger_distance'],'closest_danger':sim_evaluator.current_situation['closest_danger']})
+            self.results_q.put({'danger_distance':danger_distance,'closest_danger':closest_danger})
             #self.results_q.put(output_msg)#put the output msg into the q
             self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
             self.Experiment_Logger.write('q joined')                

@@ -187,6 +187,7 @@ class Agent:
         return 1
 
     def dummy_rule(self, plan, robot):
-         time.sleep(0.5)
-         return
+        print 'dummy rule'
+        time.sleep(0.5)
+        return
 

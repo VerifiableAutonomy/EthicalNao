@@ -140,9 +140,9 @@ class ConsequenceEngine():
         index = numpy.argmin(angles)
         inferred_goal = objects[index]
 
-        if speed_actor < self.__speed_threshold: inferred_goal = actor
+        if speed_actor < self.__speed_threshold: inferred_goal = None
         
-        if isinstance(inferred_goal,basestring): inferred_goal = self.__tracker.get_position(inferred_goal)
+        if isinstance(inferred_goal,basestring): inferred_goal = self.__tracker.get_position(inferred_goal)[:2]
         
         if minimal_return: return inferred_goal
 
@@ -169,7 +169,7 @@ class ConsequenceEngine():
         
         if 'DEBUG_position_' + actor in self.settings:
             start = self.settings['DEBUG_position_' + actor]
-        elif not actor_start:
+        elif actor_start is None:
             start = self.__tracker.get_position(actor)
             start = numpy.array(start[:2])
         else:
@@ -229,7 +229,7 @@ class ConsequenceEngine():
 
     def predict_and_evaluate(self, actor, start=None, goal=None, plot=False, write_output=False):
         #only for use by the human - the robot has seperate functions depending on plan
-        start = time.time()
+        start_t = time.time()
         prediction = self.predict_path(actor, start, goal, plot)
         evaluation = self.evaluate_path(prediction)
         text = 'RESULT P&E: ' + prediction['actor'] + ', '
@@ -239,7 +239,7 @@ class ConsequenceEngine():
         text += str(evaluation['in_danger']) + ', '
         if write_output: self.__logger.write(text)
         end = time.time()
-        duration = end - start
+        duration = end - start_t
         for k in prediction.keys(): evaluation[k] = copy.copy(prediction[k])         
         evaluation['text'] = text
         evaluation['duration'] = duration
@@ -461,19 +461,21 @@ class ConsequenceEngine():
         #return the list of distances            
         return result
 
-    def predict_all(self, actor, plan_params, robot_location, human_location, human_goal, Robot_Plan=False, plot=False):
+    def predict_all(self, actor, plan_params, robot_location, human_location, human_goal, current_situation, Robot_Plan=False, plot=False):
         #plan_params is the dictionary of parameters for all 3 plan types as suggested by the GP
         start = time.time()
-        if isinstance(plot,basestring):
-            plot_cs=plot.replace('XXX', actor)+actor
-        else:
-            plot_cs = plot
-
-        if 'DEBUG_goal_HUMAN_A' in self.settings:
-            current_situation = self.predict_and_evaluate(actor, start = human_location, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot_cs)
-        else:
-            current_situation = self.predict_and_evaluate(actor, start = human_location, goal=human_goal, plot=plot_cs)#use the current plan graph to assess no plan situation        
-        
+#==============================================================================
+#         if isinstance(plot,basestring):
+#             plot_cs=plot.replace('XXX', actor)+actor
+#         else:
+#             plot_cs = plot
+# 
+#         if 'DEBUG_goal_HUMAN_A' in self.settings:
+#             current_situation = self.predict_and_evaluate(actor, start = human_location, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot_cs)
+#         else:
+#             current_situation = self.predict_and_evaluate(actor, start = human_location, goal=human_goal, plot=False)#plot_cs)#use the current plan graph to assess no plan situation        
+#         
+#==============================================================================
         no_action = 'No intervention:' + actor + ' Goal ' + str(current_situation['goal']) + ' Danger ' + str(current_situation['in_danger']) + ' C_Danger ' + str(current_situation['closest_danger']) + ' d_dist ' + str(current_situation['danger_distance'])
         self.__logger.write(no_action)        
         

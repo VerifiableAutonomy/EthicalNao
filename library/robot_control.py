@@ -97,14 +97,14 @@ class robot_controller():
     #ACTIONS
     def move_to_target_action(self,robot,action_info):
         #plan and execute robot motion
-        plan = action_info['plan']
-        robot.speed_factor = plan['speed']
+        #plan = action_info['plan']
+        robot.speed_factor = action_info['plan']['speed']
         # Subject to change
-        robot_motion = plan['motion_command'](plan['position'], plot=False)
+        robot_motion = action_info['motion_command']
         next_position_robot = robot_motion['next_position']
         self.Experiment_Logger.write('target ' + str(next_position_robot[0])+' '+str(next_position_robot[1]))
         robot.go_to_position(next_position_robot[0], next_position_robot[1])
-        robot.speak_text('move to target')#debug
+        #robot.speak_text('move to target')#debug
             
     def stop_action(self,robot,action_info):
         robot.stop_robot()
@@ -227,7 +227,7 @@ class robot_controller():
                 
             rule_info = self.ethical_engine.update_beliefs()
             
-                      
+            print self.ethical_engine.agent.beliefbase          
             if not self.end_flag.is_set():
                 
                 #as rule execution relies on a robot object which doesn't exist in debug mode 
@@ -236,7 +236,7 @@ class robot_controller():
                     self.ethical_engine.execute_a_rule(robot, rule_info)
                 except:
                     self.ethical_engine.execute_a_rule(None, rule_info)
-                print self.ethical_engine.agent.beliefbase
+                
                 end = time.time()
                 dur = end - start
                 
