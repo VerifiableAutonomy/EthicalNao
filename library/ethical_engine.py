@@ -15,7 +15,7 @@ class ethical_engine():
     def __init__(self, robot_controller):
         self.Experiment_Logger = Utilities.Logger('Ethical_Eng')
 
-        self.agent = nao_agent.Agent()
+        self.agent = nao_agent.NaoAgent()
         self.robot_controller = robot_controller
         self.results_q = self.robot_controller.results_q
         self.plan_eval_q = self.robot_controller.plan_eval_q
@@ -217,7 +217,7 @@ class ethical_engine():
         self.agent.drop_belief('warning_plan')
         self.agent.drop_belief('pointing_plan')
         if self.plan['type'] == 'warn':
-            self.agent.add_belief('warning_plan')                                  
+            self.agent.add_belief('warning_plan')
         elif self.plan['type'] == 'point':
             self.agent.add_belief('pointing_plan')
             
