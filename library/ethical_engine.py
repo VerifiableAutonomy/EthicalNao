@@ -6,7 +6,6 @@ Created on Tue Jul 18 17:35:24 2017
 @author: louiseadennis
 """
 import nao_agent
-import robot_control
 import numpy
 from library import Utilities
 import multiprocessing as mp
