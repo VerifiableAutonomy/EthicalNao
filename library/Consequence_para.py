@@ -26,7 +26,7 @@ def plot_value_function():
 
 
 class ConsequenceEngine():
-    def __init__(self, self_name, actor_names, tracker, plan, settings, engine_name='CEngine'):
+    def __init__(self, self_name, actor_names, tracker, plan, settings, plan_eval_q, engine_name='CEngine'):
                         
         self.__logger = Utilities.Logger(engine_name)
         self.__logger.write('Creating consequence engine ' + engine_name + ' for ' + self_name)
@@ -38,13 +38,15 @@ class ConsequenceEngine():
         self.__self_name = self_name
         self.__engine_name = engine_name
         self.__actor_names = actor_names
-        self.__graphs = {}
+        self.graphs = {}
 
         self.__dangers = []
         self.__danger_locations = None
         
         self.__plan = plan
         self.settings = settings
+        
+        self.plan_eval_q = plan_eval_q
 
         for actor in actor_names: self.make_graph(actor)
         self.make_graph(self_name)
@@ -55,10 +57,10 @@ class ConsequenceEngine():
 
     def make_graph(self, actor, data=False, step=None):
         graph = PathPlanning.Planner(self.__tracker, data=data, step=step)
-        self.__graphs[actor] = copy.copy(graph)
+        self.graphs[actor] = copy.copy(graph)
     
-    def motion_command(self, goal, plan, plot=False):
-        g = self.__graphs[self.__self_name]
+    def motion_command(self, goal, plot=False):
+        g = self.graphs[self.__self_name]
         start = self.__tracker.get_position(self.__self_name)[0:2]
         result = g.motion_command(start, goal, plot)
         return result
@@ -79,7 +81,7 @@ class ConsequenceEngine():
     def add_obstacles(self, obstacles, actor=None):
         if type(obstacles) is not list: obstacles = [obstacles]
         if actor == 'self': actor = self.__self_name
-        g = self.__graphs[actor]
+        g = self.graphs[actor]
         current_obstacles = g.get_obstacles()
         new_obstacles = current_obstacles + obstacles
         self.set_obstacles(new_obstacles, actor)
@@ -89,12 +91,12 @@ class ConsequenceEngine():
         if actor == 'self': actor = self.__self_name
         if not type(obstacles) == list: obstacles = [obstacles]
         obstacles = obstacles[:]
-        g = copy.copy(self.__graphs[actor])
+        g = copy.copy(self.graphs[actor])
         g.set_obstacles(obstacles)
-        self.__graphs[actor] = copy.copy(g)
+        self.graphs[actor] = copy.copy(g)
         
     def change_step(self, actor, step):
-        self.__graphs[actor].set_step(step)
+        self.graphs[actor].set_step(step)
 
     def world2actor(self, agent_name, world_x, world_y):
         '''
@@ -138,7 +140,10 @@ class ConsequenceEngine():
         index = numpy.argmin(angles)
         inferred_goal = objects[index]
 
-        if speed_actor < self.__speed_threshold: inferred_goal = actor
+        if speed_actor < self.__speed_threshold: inferred_goal = None
+        
+        if isinstance(inferred_goal,basestring): inferred_goal = self.__tracker.get_position(inferred_goal)[:2]
+        
         if minimal_return: return inferred_goal
 
         velocity_actor_norm = Utilities.normalize(velocity_actor) * 0.25
@@ -157,26 +162,28 @@ class ConsequenceEngine():
         result['objects'] = objects
         return result
 
-    def predict_path(self, actor, goal=None, plot=False):
+    def predict_path(self, actor, actor_start=None, goal=None, plot=False):
         if goal is None: goal = self.infer_actor_goal(actor, minimal_return=True)
         
         if type(goal) == str: self.__tracker.get_position(goal)
         
         if 'DEBUG_position_' + actor in self.settings:
             start = self.settings['DEBUG_position_' + actor]
-        else:
+        elif actor_start is None:
             start = self.__tracker.get_position(actor)
             start = numpy.array(start[:2])
+        else:
+            start = actor_start
         
         #start = [0,0]#debug start actor at 0,0
-        g = self.__graphs[actor]
+        g = self.graphs[actor]
         result = g.find_path(start, goal, plot)
         result['actor'] = actor
         result['start'] = start
         result['goal'] = goal
-        path = numpy.vstack((result['start'], result['path']))#result['path']
-        distances_along_path = numpy.diff(path, n=1, axis=0)
-        #distances_along_path = numpy.vstack((numpy.array([0, 0]), distances_along_path))
+        result['path'] = numpy.vstack((result['start'], result['path']))#result['path']
+        distances_along_path = numpy.diff(result['path'], n=1, axis=0)
+        distances_along_path = numpy.vstack((numpy.array([0, 0]), distances_along_path))
         distances_along_path = numpy.sum(distances_along_path ** 2, axis=1) ** 0.5
         distances_along_path = numpy.cumsum(distances_along_path)
         result['distances_along_path'] = distances_along_path
@@ -220,10 +227,10 @@ class ConsequenceEngine():
         #evaluation['total'] = MAX_DIST - self.settings['W_danger_distance']*evaluation['danger_distance']
         return evaluation
 
-    def predict_and_evaluate(self, actor,goal=None, plot=False, write_output=False):
+    def predict_and_evaluate(self, actor, start=None, goal=None, plot=False, write_output=False):
         #only for use by the human - the robot has seperate functions depending on plan
-        start = time.time()
-        prediction = self.predict_path(actor, goal, plot)
+        start_t = time.time()
+        prediction = self.predict_path(actor, start, goal, plot)
         evaluation = self.evaluate_path(prediction)
         text = 'RESULT P&E: ' + prediction['actor'] + ', '
         text += str(prediction['goal']) + ', '
@@ -232,7 +239,7 @@ class ConsequenceEngine():
         text += str(evaluation['in_danger']) + ', '
         if write_output: self.__logger.write(text)
         end = time.time()
-        duration = end - start
+        duration = end - start_t
         for k in prediction.keys(): evaluation[k] = copy.copy(prediction[k])         
         evaluation['text'] = text
         evaluation['duration'] = duration
@@ -250,8 +257,8 @@ class ConsequenceEngine():
         except:#if no intercept it will raise an exception and set the search return to None
             intercept_idx = None
             
-        score = {}
-
+        score = Utilities.Ethical_Score()#create score obj, values default to fail case
+            
         if intercept_idx <> None and not robot_eval['in_danger']:#if there is an intercept point in the path
 
 #==============================================================================
@@ -272,39 +279,36 @@ class ConsequenceEngine():
             human_path['goal'] = human_eval['goal']
             #evaluate intercepted path
             human_eval = self.evaluate_path(human_path)#recalculates the evaluation of the human path
-            score['closest_danger'] = human_eval['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
+            
+            score.closest_danger = human_eval['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
             #get distance walked to the intercept point from the results dictionary of the robot
-            score['robot_walking_dist'] = robot_eval['distances_along_path'][intercept_idx]
+            score.robot_walking_dist = robot_eval['distances_along_path'][intercept_idx]
             #get speed of robot
-            score['robot_speed'] = plan_params['speed']
+            score.robot_speed = plan_params['speed']
             #TODO improve evaluation to include probability of success based on likelihood the hunman will notice the robot and stop, that the robot is able to safely get to the target location etc.
             #components to be maximised are inverted
-            score['danger_distance'] = -1 * human_eval['danger_distance']
+            score.danger_distance = human_eval['danger_distance']
             #all score components should be max of 1 or 2, so unless weights set differently will be roughly evenly weigthed in the final score
-            score['robot_danger_dist'] = -1 * robot_eval['danger_dist']#min dist of robot to danger
+            score.robot_danger_dist = robot_eval['danger_dist']#min dist of robot to danger
             #calculate difference in times between human and robot arriving at intercept point, difference is number of time steps robot is waiting
-            score['wait_time'] = -1 * (score['robot_speed']/0.25) * (intercept_idx - numpy.where(numpy.all(robot_eval['path']==robot_eval['path'][intercept_idx],axis=1))[0][0])
-
+            score.wait_time = (score.robot_speed/0.25) * (intercept_idx - numpy.where(numpy.all(robot_eval['path']==robot_eval['path'][intercept_idx],axis=1))[0][0])
+            score.robot_obj_dist = robot_eval['obj_dist']
             #aim is to minimise this score
-            score['total'] = self.settings['W_danger_distance']*score['danger_distance'] + \
-                                self.settings['W_robot_walking_dist']*score['robot_walking_dist'] + \
-                                self.settings['W_robot_speed']*score['robot_speed'] + \
-                                self.settings['W_wait_time']* score['wait_time']                           
+            score.total =       self.settings['W_robot_walking_dist']*score.robot_walking_dist - \
+                                self.settings['W_danger_distance']*score.danger_distance + \
+                                self.settings['W_robot_speed']*score.robot_speed - \
+                                self.settings['W_wait_time']* score.wait_time - \
+                                self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
+                                self.settings['W_robot_obj_dist']* score.robot_obj_dist
 #==============================================================================
 #             score['total'] =    self.settings['W_danger_distance']*score['danger_distance'] + \
 #                                 (self.settings['W_robot_walking_dist']*score['robot_walking_dist'] * \
 #                                 self.settings['W_robot_speed']*score['robot_speed']) + \
 #                                 self.settings['W_wait_time']* score['wait_time']      
 #==============================================================================
-        else:
-            #give a score that corresponds to a failed intercept
-            score['closest_danger'] = None#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
-            score['robot_walking_dist'] = 2
-            score['robot_speed'] = 0.5
-            score['danger_distance'] = 0
-            score['robot_danger_dist'] = 0
-            score['wait_time'] = 0
-            score['total'] = self.settings['MAX_SCORE']#maximum score, to indicate a failed plan
+        #else:
+            #score is initially set to correspond to a failed intercept, so on intercept failure do nothing
+            #pass
             
         return score
         
@@ -328,76 +332,49 @@ class ConsequenceEngine():
         try:
             warn_idx = next(idx for idx,rel_dist in enumerate(rel_dists) if rel_dist < self.settings['hearing_dist'])#search for index of dist < 0.5
         except:
-            warn_idx = None
-        score = {}     
-        
-        #use stop_idx to calculate warn idx by looking at rel_dists for when robots are hearing dist appart
-        
-        #xan then use this value to calculate wait time
-        #don't need to pass the path back as the robot controller just stops at the target point and then waits for the human to be in range before warnings
-        
-        score = {}
-        if intercept_idx <> None or warn_idx == None or robot_eval['in_danger']:
-            #give a score that corresponds to a failed warn because of an intercept or dangerous target
-            score['closest_danger'] = None
-            score['robot_walking_dist'] = 2
-            score['robot_speed'] = 0.5
-            score['danger_distance'] = 0
-            score['robot_danger_dist'] = 0
-            score['wait_time'] = 0
-            score['total'] = self.settings['MAX_SCORE']#maximum score, to indicate a failed plan
-        else:
-            #assume warn successful if close enough,     
-#==============================================================================
-#             robot_goal = numpy.array(plan_params['position'])
-#             print 'path ',robot_eval['path']
-#             print 'pp ',robot_goal
-#             print 'hp', human_eval['path']
-#             print 'dists', rel_dists
-# 
-#==============================================================================
-                
-            warn_dist = numpy.min(rel_dists)#assume warning executed when robots closest together
-            #TODO change simple threshold to calculate a success probabity for the warning based on the inter-robot distance when warning
-            if warn_dist < self.settings['hearing_dist']:
-            #so add the warned danger to a temp copy of the human's knowledge and re-predict the human path
-                current_graph = self.__graphs[actor]
-                current_graph_data = current_graph.get_data()#get a copy of the currently stored graph data
-                #add the warned obstacle to it
-                self.add_obstacles(human_eval['closest_danger'], actor)#assumes the warned danger is the one closest to the human
-                #re-evaluate human path
-                evaluation = self.predict_and_evaluate(actor, human_eval['goal'])#, plot, write_output)
-                self.make_graph(actor, data=current_graph_data)#restore the graph
-                self.__graphs[actor].plot_network(save=self.settings['session_path']+'plots')
-                #there is no wait for ack in plan simulation
-                score['closest_danger'] = evaluation['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
-                
-                #return the actual plan goal - robot only walks to the warn location which is calculated in this method
-                #score['goal'] = robot_eval['path'][stop_idx]
-            
-                #get distance walked to the intercept point from the results dictionary of the robot
-                score['robot_walking_dist'] = robot_eval['distances_along_path'][warn_idx]
-                #get speed of robot
-                score['robot_speed'] = plan_params['speed']
-                #calculate human distance to goal at intercept - utility of this depends somewhat on experiment set up, i.e., is goal a danger or is danger just on human path
-                #TODO accumulate the components, weighted appropriately to form an evaluation score
-                score['danger_distance'] =  -1 * evaluation['danger_distance']
-                #all score components should be max of 1 or 2, so unless weights set differently will be roughlt evenly weigthed in the final score
-                score['robot_danger_dist'] = 0#TODO update scoring for this plan type
-                score['wait_time'] = -1 * (score['robot_speed']/0.25) * (warn_idx - numpy.where(numpy.all(robot_eval['path']==robot_eval['path'][warn_idx],axis=1))[0][0])
-                score['total'] = self.settings['W_danger_distance']*score['danger_distance'] + \
-                                    self.settings['W_robot_walking_dist']*score['robot_walking_dist'] + \
-                                    self.settings['W_robot_speed']*score['robot_speed'] + \
-                                    self.settings['W_wait_time']* score['wait_time'] 
-                                    #self.settings['W_robot_danger_dist']* score['robot_danger_dist'] + \
-            else:
-                score['closest_danger'] = None
-                score['robot_walking_dist'] = 2
-                score['robot_speed'] = 0.5
-                score['danger_distance'] = 0
-                score['robot_danger_dist'] = 0
-                score['wait_time'] = 0
-                score['total'] = self.settings['MAX_SCORE']#maximum score, to indicate a failed plan
+            warn_idx = None         
+         
+        score = Utilities.Ethical_Score()#create score obj, values default to fail case
+        warn_dist = numpy.min(rel_dists)
+        #print warn_idx
+        #print intercept_idx
+        #print rel_dists
+        #print human_eval['path']
+        #print robot_eval['path']
+        if intercept_idx == None and warn_idx <> None and not robot_eval['in_danger'] and warn_dist < self.settings['hearing_dist']:
+            #add the warned danger to a temp copy of the human's knowledge and re-predict the human path
+            current_graph = self.graphs[actor]
+            current_graph_data = current_graph.get_data()#get a copy of the currently stored graph data
+            #add the warned obstacle to it
+            self.add_obstacles(human_eval['closest_danger'], actor)#assumes the warned danger is the one closest to the human
+            #re-evaluate human path
+            human_eval_updated = self.predict_and_evaluate(actor, start = human_eval['start'], goal = human_eval['goal'])#, plot, write_output)
+            #start = time.time()
+            self.make_graph(actor, data=current_graph_data)#restore the graph
+            #self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
+            #there is no wait for ack in plan simulation
+            score.closest_danger = human_eval_updated['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
+            #get distance walked to the intercept point from the results dictionary of the robot
+            score.robot_walking_dist = robot_eval['distances_along_path'][warn_idx]
+            #get speed of robot
+            score.robot_speed = plan_params['speed']
+            #TODO improve evaluation to include probability of success based on likelihood the hunman will notice the robot and stop, that the robot is able to safely get to the target location etc.
+            #components to be maximised are inverted
+            score.danger_distance = human_eval_updated['danger_distance']
+            #all score components should be max of 1 or 2, so unless weights set differently will be roughly evenly weigthed in the final score
+            score.robot_danger_dist = robot_eval['danger_dist']#min dist of robot to danger
+            #calculate difference in times between human and robot arriving at intercept point, difference is number of time steps robot is waiting
+            score.wait_time = (score.robot_speed/0.25) * (warn_idx - numpy.where(numpy.all(robot_eval['path']==robot_eval['path'][warn_idx],axis=1))[0][0])
+            score.robot_obj_dist = robot_eval['obj_dist']
+            #aim is to minimise this score
+            score.total =       self.settings['W_robot_walking_dist']*score.robot_walking_dist - \
+                                self.settings['W_danger_distance']*score.danger_distance + \
+                                self.settings['W_robot_speed']*score.robot_speed - \
+                                self.settings['W_wait_time']* score.wait_time - \
+                                self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
+                                self.settings['W_robot_obj_dist']* score.robot_obj_dist
+        #else:
+            #pass
                 
             
         return score
@@ -417,66 +394,52 @@ class ConsequenceEngine():
             intercept_idx = None#if no intercept it will raise an exception and set the search return to None
         score = {}        
 
-        intercept_idx = 1#debug
+        try:
+            point_idx= numpy.where(numpy.all(robot_eval['path']==plan_params['position'],axis=1))[0][0]
+        except:
+            #print robot_eval['path']
+            print 'point idx not found'
+            point_idx = None
 
-        if intercept_idx <> None:
-            #give a score that corresponds to a failed point because of an intercept
-            score['closest_danger'] = None
-            score['robot_walking_dist'] = 2
-            score['robot_speed'] = 0.5
-            score['danger_distance'] = 0
-            score['robot_danger_dist'] = 0
-            score['wait_time'] = 0
-            score['total'] = self.settings['MAX_SCORE']#maximum score, to indicate a failed plan
-        else:
-            #assume warn successful if close enough,     
-            
-            try:
-                point_idx= numpy.where(numpy.all(robot_eval['path']==plan_params['position'],axis=1))[0][0]
-            except:
-                #print robot_eval['path']
-                print 'point idx not found'
-                point_idx = 0
-            
-            point_dist = rel_dists[point_idx]
-
-            #TODO change simple threshold to calculate a success probabity for the warning based on the inter-robot distance when warning
-            if point_dist < self.settings['pointing_dist']:
+        point_dist = numpy.min(rel_dists)
+        score = Utilities.Ethical_Score()#create score obj, values default to fail case
+        
+        if intercept_idx == None and point_idx <> None and point_dist < self.settings['pointing_dist'] and not robot_eval['in_danger']:
+       
             #so add the warned danger to a temp copy of the human's knowledge and re-predict the human path
-                current_graph = self.__graphs[actor]
+                current_graph = self.graphs[actor]
                 current_graph_data = current_graph.get_data()#get a copy of the currently stored graph data
                 #add the warned obstacle to it
                 self.add_obstacles(plan_params['point_pos'], actor)#assumes the warned danger is the one closest to the human
                 #re-evaluate human path
-                evaluation = self.predict_and_evaluate(actor, human_eval['goal'])#, plot, write_output)
-                self.make_graph(actor, data=current_graph_data)#restore the graph
-                self.__graphs[actor].plot_network(save=self.settings['session_path']+'plots')
-                #there is no wait for ack in plan simulation
-                score['closest_danger'] = evaluation['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
-            
-                #get distance walked to the intercept point from the results dictionary of the robot
-                score['robot_walking_dist'] = robot_eval['distances_along_path'][-1]
-                #get speed of robot
-                score['robot_speed'] = plan_params['speed']
-                #calculate human distance to goal at intercept - utility of this depends somewhat on experiment set up, i.e., is goal a danger or is danger just on human path
-                #TODO accumulate the components, weighted appropriately to form an evaluation score
-                score['danger_distance'] = MAX_DIST - evaluation['danger_distance']
-                #all score components should be max of 1 or 2, so unless weights set differently will be roughlt evenly weigthed in the final score
-                score['robot_danger_dist'] = 0#TODO update scoring for this plan type
-                score['wait_time'] = 0
-                score['total'] = self.settings['W_danger_distance']*score['danger_distance'] + \
-                                    self.settings['W_robot_walking_dist']*score['robot_walking_dist'] + \
-                                    self.settings['W_robot_speed']*score['robot_speed'] + \
-                                    self.settings['W_robot_danger_dist']* score['robot_danger_dist'] + \
-                                    self.settings['W_wait_time']* score['wait_time'] 
-            else:
-                score['closest_danger'] = None#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
-                score['robot_walking_dist'] = 2
-                score['robot_speed'] = 0.5
-                score['danger_distance'] = 0
-                score['robot_danger_dist'] = 0
-                score['wait_time'] = 0
-                score['total'] = self.settings['MAX_SCORE']#maximum score, to indicate a failed plan
+                human_eval_updated = self.predict_and_evaluate(actor, start = human_eval['start'], goal = human_eval['goal'])#, plot, write_output)
+                if not human_eval_updated['in_danger']:#if the plan outcome does not keep the human from danger leave score as max
+                    self.make_graph(actor, data=current_graph_data)#restore the graph
+                    #self.graphs[actor].plot_network(save=self.settings['session_path']+'plots')
+                    #there is no wait for ack in plan simulation
+                    
+                    score.closest_danger = human_eval_updated['closest_danger']#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
+                    #get distance walked to the intercept point from the results dictionary of the robot
+                    score.robot_walking_dist = robot_eval['distances_along_path'][point_idx]
+                    #get speed of robot
+                    score.robot_speed = plan_params['speed']
+                    #TODO improve evaluation to include probability of success based on likelihood the hunman will notice the robot and stop, that the robot is able to safely get to the target location etc.
+                    #components to be maximised are inverted
+                    score.danger_distance = human_eval_updated['danger_distance']
+                    #all score components should be max of 1 or 2, so unless weights set differently will be roughly evenly weigthed in the final score
+                    score.robot_danger_dist = robot_eval['danger_dist']#min dist of robot to danger
+                    #calculate difference in times between human and robot arriving at intercept point, difference is number of time steps robot is waiting
+                    score.wait_time = (score.robot_speed/0.25) * (point_idx - numpy.where(numpy.all(robot_eval['path']==robot_eval['path'][point_idx],axis=1))[0][0])
+                    score.robot_obj_dist = robot_eval['obj_dist']
+                    #aim is to minimise this score
+                    score.total =       self.settings['W_robot_walking_dist']*score.robot_walking_dist - \
+                                        self.settings['W_danger_distance']*score.danger_distance + \
+                                        self.settings['W_robot_speed']*score.robot_speed - \
+                                        self.settings['W_wait_time']* score.wait_time - \
+                                        self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
+                                        self.settings['W_robot_obj_dist']* score.robot_obj_dist
+                else:
+                    self.__logger.write('human still in danger')
                 
             
         return score
@@ -498,19 +461,21 @@ class ConsequenceEngine():
         #return the list of distances            
         return result
 
-    def predict_all(self, actor, plan_params, Robot_Plan=False, plot=False):
+    def predict_all(self, actor, plan_params, robot_location, human_location, human_goal, current_situation, Robot_Plan=False, plot=False):
         #plan_params is the dictionary of parameters for all 3 plan types as suggested by the GP
         start = time.time()
-        if isinstance(plot,basestring):
-            plot_cs=plot.replace('XXX', actor)+actor
-        else:
-            plot_cs = plot
-
-        if 'DEBUG_goal_HUMAN_A' in self.settings:
-            current_situation = self.predict_and_evaluate(actor, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot_cs)
-        else:
-            current_situation = self.predict_and_evaluate(actor, plot=plot_cs)#use the current plan graph to assess no plan situation        
-        
+#==============================================================================
+#         if isinstance(plot,basestring):
+#             plot_cs=plot.replace('XXX', actor)+actor
+#         else:
+#             plot_cs = plot
+# 
+#         if 'DEBUG_goal_HUMAN_A' in self.settings:
+#             current_situation = self.predict_and_evaluate(actor, start = human_location, goal=self.settings['DEBUG_goal_HUMAN_A'], plot=plot_cs)
+#         else:
+#             current_situation = self.predict_and_evaluate(actor, start = human_location, goal=human_goal, plot=False)#plot_cs)#use the current plan graph to assess no plan situation        
+#         
+#==============================================================================
         no_action = 'No intervention:' + actor + ' Goal ' + str(current_situation['goal']) + ' Danger ' + str(current_situation['in_danger']) + ' C_Danger ' + str(current_situation['closest_danger']) + ' d_dist ' + str(current_situation['danger_distance'])
         self.__logger.write(no_action)        
         
@@ -529,7 +494,7 @@ class ConsequenceEngine():
         if Robot_Plan:
             robot_plan = Robot_Plan
         else:
-            robot_plan = self.predict_path(self.__self_name, goal=robot_goal, plot=plot_rp)#g.find_path(start, plan_params['position'], plot)
+            robot_plan = self.predict_path(self.__self_name, start = robot_location, goal=robot_goal, plot=plot_rp)#g.find_path(start, plan_params['position'], plot)
         #print self.__plan
         #print robot_goal
         #print robot_plan['path']
@@ -561,7 +526,8 @@ class ConsequenceEngine():
             robot_plan['in_danger'] = True   
         else:
             robot_plan['in_danger'] = False
-
+        #calculate goal distance from objective
+        robot_plan['obj_dist'] =  numpy.sum((numpy.array(self.settings['ROBOT_objective']) - numpy.array(robot_plan['goal']))**2)**0.5
         #pass both planned paths to a function that calculates distances between the robots at each time step
         #the graphs for human and robot are scaled for each plan so that one node in the graph is the distance travelled by that robot in one time step
         robot_actor_dists = self.predict_dists(robot_plan['path'], current_situation['path'])
@@ -576,10 +542,10 @@ class ConsequenceEngine():
             result = self.predict_and_evaluate_point(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
             #print 'point'
         if result:    
-            score = actor + ' goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' CD ' + str(result['closest_danger']) + ' WD ' + str(result['robot_walking_dist']) + ' S ' + str(result['robot_speed']) + ' DD ' + str(result['danger_distance'])+ ' WT ' + str(result['wait_time']) + ' RDD ' + str(result['robot_danger_dist']) +' Total ' + str(result['total'])
+            score = actor + ' goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' CD ' + str(result.closest_danger) + ' WD ' + str(result.robot_walking_dist) + ' S ' + str(result.robot_speed) + ' DD ' + str(result.danger_distance)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) +' Total ' + str(result.total)
         else:
             score = str(result)
-        self.__logger.write(score)
+        
        
         
 
@@ -607,6 +573,7 @@ class ConsequenceEngine():
 #==============================================================================
         end = time.time()
         duration = end - start
+        #create a results disctionary that is returned for immediate processing by calling function
         results = {}
         results['path'] = robot_plan['path']
         results['distances_along_path'] = robot_plan['distances_along_path']
@@ -615,10 +582,12 @@ class ConsequenceEngine():
         results['score'] = result
         results['log_msg'] = score
         results['inter_rob_dists'] = robot_actor_dists#return the list of inter-robot dists so whether to warn can be evaluated by the controller
-        try:
-            results['goal'] = result['goal']#if the plan is warn or point the predict or evaluate function returns an updated goal
-        except:
-            pass
+        
+        #put the plan score result in the message q
+        self.plan_eval_q.put({'result':result,'plan_params':plan_params})#, 'graph':self.graphs[self.__self_name]
+        print 'q-size = ',self.plan_eval_q.qsize()
+
+        self.__logger.write(score)
         return results
 
 

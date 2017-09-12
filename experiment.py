@@ -29,6 +29,7 @@ from library import Webcam
 from library import Utilities
 from library import human_control
 from library import robot_control
+from library import planner
 
 #experiment script
 #call with arg of experiment name (-s <file name>), this will determine the parameters file to load
@@ -130,7 +131,7 @@ def main(argv):
     
     Experiment_Logger.write('Running script: ' + settings['session_name'])
 
-    Experiment_Logger.write('Generating camera object')
+    #Experiment_Logger.write('Generating camera object')
     
     #Camera = Webcam.Webcam()
 
@@ -145,7 +146,7 @@ def main(argv):
     shared_d_s = mp.Manager().dict({})
     tracked_objects = settings['tracked_targets'] + settings['humans'] + ['ROBOT']
     #create the sharable tracker
-    if 'DEBUG_goal_HUMAN_A' in settings:
+    if 'DEBUG_tracker' in settings:
         Tracker = None
     else:
         Tracker = Utilities.Tracker(tracked_objects, settings['virtual_objects'], shared_d_p, shared_d_v, shared_d_r, shared_d_s)    
@@ -176,14 +177,20 @@ def main(argv):
     #this also gives complete control over whether warning/point will be noticed
     robot_q = mp.Queue()
     human_q = mp.Queue()
+    results_q = mp.JoinableQueue()#queue for communication between the CE processes and the manager process
+    plan_eval_q = mp.Queue()
+    end_flag = mp.Event()
     
+    planners = {}
+    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, end_flag)
+
     #create the robot object
     Experiment_Logger.write('Generating Ethical Robot')
-    robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings)
+    robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings, results_q, plan_eval_q,planners)
     #start the CE manager process,- this will cause the robot to walk to it's starting place and block until it gets there
     #it then sits and waits for messages from the CE processes so can be safely started before the CE processes
     #it compares the optimal plan suggested by all the CE processes and selects which to execute and instruct ther robot
-    robot.CE_manager.start() 
+    robot.CE_manager.start()         
         
     #do the same for the human(s)
     if 'DEBUG_goal_HUMAN_A' not in settings:
@@ -226,16 +233,18 @@ def main(argv):
         debug_msg = human_q.get()#get the robots ready to start message
         print debug_msg
         robot_q.put('DEBUG_GO')#send start message to the robot controller
-        human_q.put({'type':'warn'})        
-        CE_processes = {}
-        for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
-        for plan in ['move','warn','point']: CE_processes[plan].start()
+        human_q.put({'type':'warn'})#debug warning ack        
+        #CE_processes = {}
+        #for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
+        #for plan in ['move','warn','point']: CE_processes[plan].start()
+        for plan in ['move','warn','point']: planners[plan].plan_process.start()
 
         #for _ in range(3):
         #    robot.results_q.put(1)
         robot.CE_manager.join()
-        
-        
+        #for plan in ['move','warn','point']: planners[plan].plan_process.join()
+        Tracker.stop()
+
         Experiment_Logger.write('Loop exited')
              
         for f in files:
@@ -290,12 +299,12 @@ def main(argv):
 #########################
 
     #all robots should now be in position so start them going
-    for plan in ['move','warn','point']: robot.CE_processes[plan].start()#start the CE processes
+    for plan in ['move','warn','point']: planners[plan].plan_process.start()#start the CE processes
     for _ in range(len(settings['humans'])+1): robot_q.put('GO!')    
 
     #Wait for all robot control processes to end before grabbing log data
     for human in settings['humans']: humans[human].plan_process.join()
-    for plan in ['move','warn','point']: robot.CE_processes[plan].join()
+    #for plan in ['move','warn','point']: robot.CE_processes[plan].join()
     robot.CE_manager.join()
     
     
