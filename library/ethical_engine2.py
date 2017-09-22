@@ -11,15 +11,12 @@ import numpy
 from library import Utilities
 import multiprocessing as mp
 import Queue 
-import os
-import ast
-import sys
 
 class ethical_engine():
     def __init__(self, robot_controller):
         self.Experiment_Logger = Utilities.Logger('Ethical_Eng')
 
-        self.agent = nao_agent.NaoAgent()
+        self.agent = nao_agent.Agent()
         self.robot_controller = robot_controller
         self.results_q = self.robot_controller.results_q
         self.plan_eval_q = self.robot_controller.plan_eval_q
@@ -31,43 +28,13 @@ class ethical_engine():
        # Subject to change
         #self.ce = ConsequenceEngine.CE_process()
         
-        #load weights file(s)
-        #store the weight sets in a dictionary keyed by the belief name that should trigger them
-        self.weight_dict = {}
-        files = os.listdir('weights')
-        for weight_f in files:
-            weight_set = {}
-            try:
-                with open('weights/' + weight_f) as f:
-                        for line in f:
-                            if '#' not in line:#hash used in settings file to comment lines out
-                                try:
-                                    (key, val) = line.split()                        
-                                except:
-                                    print line
-                                    sys.exit(2)
-                                try:
-                                    val = ast.literal_eval(val)#val is processed as if it is python code not a string, so ensure settings file correctly formatted
-                                except:
-                                    print val#if not valid formatting print the eroneous value for debugging purposes
-                                weight_set[key] = val
-            except IOError:
-                print 'invalid file'
-                sys.exit(2)
-            self.weight_dict[weight_f] = weight_set
-        
         #believe_at_goal = self.agent.B('at_goal')
         #not_believe_at_goal = self.agent.NOT(self.a)
         self.agent.add_condition_rule(self.agent.B('too_close_to_a_human'), self.stop_rule)
         self.agent.add_condition_rule(self.agent.B('vocal_warning_acknowledged'), self.vocal_warning_recieved_rule)
         self.agent.add_condition_rule(self.agent.B('pointed_warning_acknowledged'), self.pointed_warning_recieved_rule)
-        self.agent.add_condition_rule(self.agent.AND(self.agent.NOT(self.agent.B('human_in_danger')),self.agent.B('revert_plan')) , self.own_goal_rule)
-        #self.agent.add_condition_rule(self.agent.AND(self.agent.B('human_in_danger'),self.agent.B('new_plan')), self.update_plans_rule)
-        #Several rules with AND in the beliefs so which rule triggers determines comparison weights
-        self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_1')), self.compare_plans_1, self.update_plan_rule)
-        self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_2')), self.compare_plans_2, self.update_plan_rule)
-        #if none of the other conditions are met do the comparison with a base set of weights
-        self.agent.add_pick_best_rule(self.agent.B('plans'), self.compare_plans, self.update_plan_rule)
+        self.agent.add_condition_rule(self.agent.AND(self.agent.NOT(self.agent.B('human_in_danger')),self.agent.B('new_plan')) , self.own_goal_rule)#TODO the actual outcome should be the robot walks towards its goal
+        self.agent.add_condition_rule(self.agent.AND(self.agent.B('human_in_danger'),self.agent.B('new_plan')), self.update_plans_rule)
         self.agent.add_condition_rule(self.agent.AND(self.agent.B('all_humans_stopped'), self.agent.B('at_goal')), self.stop_rule)#TODO this would be own_goal I think, but the human not moving would be identified as not in danger by the planner so the previous rule will cover the situation
         self.agent.add_condition_rule(self.agent.AND(self.agent.B('at_goal'), self.agent.NOT(self.agent.B('stopped_moving'))), self.stop_moving_rule)
         self.agent.add_condition_rule(self.agent.NOT(self.agent.B('at_goal')), self.movement_rule)
@@ -136,112 +103,57 @@ class ethical_engine():
         print 'movement_rule'
         
     def own_goal_rule(self, robot, rule_info):
-        self.agent.drop_belief('revert_plan')
+        self.agent.drop_belief('new_plan')
         self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-        #rule_info['plan'] = self.plan
+        rule_info['plan'] = self.plan
             
         print 'own_goal_rule'
-        
-#==============================================================================
-#     def update_plans_rule(self, robot, rule_info):
-#         self.agent.drop_belief('new_plan')
-#         consequence_result = self.compare_plans()
-#         if consequence_result <> None:
-#             self.plan = consequence_result['plan_params']
-#         else:#if all the plans fail then robot just walks to its own objective
-#             self.agent.add_belief('all_plans_fail')#this belief is not used currently but is added for logging purposes
-#             self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-# 
-#==============================================================================
-    def update_plan_rule(self, plan, robot, rule_info):
-        if plan['result'].total == 100:#if the best plan has a max score it means all the plans failed so default to going to own goal
+    def update_plans_rule(self, robot, rule_info):
+        self.agent.drop_belief('new_plan')
+        consequence_result = self.compare_plans()
+        if consequence_result <> None:
+            self.plan = consequence_result['plan_params']
+        else:#if all the plans fail then robot just walks to its own objective
+            self.agent.add_belief('all_plans_fail')#this belief is not used currently but is added for logging purposes
             self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-        else:
-            self.plan = plan['plan_params']
-        self.agent.drop_belief('plans')
 
-    def compare_plans(self, plan1, plan2):
-        scores = self.agent.belief_value(self.agent.B('scores'))
-        
-        if scores[plan1]['result'].total < scores[plan2]['result'].total:
-            return 1;
-        else:
-            return 0;
-            
-    def weighted_compare(self, weights, plan1, plan2):
-        total1 = weights['W_robot_walking_dist']*plan1.robot_walking_dist - \
-                weights['W_danger_distance']*plan1.danger_distance + \
-                weights['W_robot_speed']*plan1.robot_speed - \
-                weights['W_wait_time']* plan1.wait_time - \
-                weights['W_robot_danger_dist']* plan1.robot_danger_dist + \
-                weights['W_robot_obj_dist']* plan1.robot_obj_dist
-
-        total2 = weights['W_robot_walking_dist']*plan2.robot_walking_dist - \
-                weights['W_danger_distance']*plan2.danger_distance + \
-                weights['W_robot_speed']*plan2.robot_speed - \
-                weights['W_wait_time']* plan2.wait_time - \
-                weights['W_robot_danger_dist']* plan2.robot_danger_dist + \
-                weights['W_robot_obj_dist']* plan2.robot_obj_dist
-
-        if total1 < total2:
-            return 1;
-        else:
-            return 0;
-        
-            
-    def compare_plans_1(self, plan1, plan2):
-        scores = self.agent.belief_value(self.agent.B('scores'))
-        weights = self.weight_dict['weights_1']
-
-        return self.weighted_compare(weights, scores[plan1]['result'], scores[plan2]['result'])
-
-    def compare_plans_2(self, plan1, plan2):
-        scores = self.agent.belief_value(self.agent.B('scores'))
-        weights = self.weight_dict['weights_2']
-
-        return self.weighted_compare(weights, scores[plan1]['result'], scores[plan2]['result'])    
-
-#Helper method for debugging    
+        #Helper method for debugging
     def debugging(self):
         return 'DEBUG_position_ROBOT' in self.robot_controller.settings and not self.robot_controller.tracker
         
         
+    def compare_plans(self):
+        if self.consequence_results == None:
+            return None
+    
+        plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
+        result = None
+        
+        for consequence_result in self.consequence_results:
+            print consequence_result['result'].total
+#recalculate the total used in the comparison here to allow weights to be set according to the situation
 #==============================================================================
-#     def compare_plans(self):
-#         if self.consequence_results == None:
-#             return None
-#     
-#         plan_eval = self.settings['MAX_SCORE']#set the current evaluation to max_score
-#         result = None
-#         
-#         for consequence_result in self.consequence_results:
-#             print consequence_result['result'].total
-# #recalculate the total used in the comparison here to allow weights to be set according to the situation
 #             total = self.settings['W_robot_walking_dist']*consequence_result['result'].robot_walking_dist - \
 #                 self.settings['W_danger_distance']*consequence_result['result'].danger_distance + \
 #                 self.settings['W_robot_speed']*consequence_result['result'].robot_speed - \
 #                 self.settings['W_wait_time']* consequence_result['result'].wait_time - \
 #                 self.settings['W_robot_danger_dist']* consequence_result['result'].robot_danger_dist + \
 #                 self.settings['W_robot_obj_dist']* consequence_result['result'].robot_obj_dist
-#             if consequence_result['result'].total < plan_eval:
-#                      plan_eval = consequence_result['result'].total
-#                      result = consequence_result#['plan_params']
-#         
-#         #self.Experiment_Logger.write('Plan selected ' + Utilities.print_dict(plan))
-# 
-#         return result 
 #==============================================================================
+            if consequence_result['result'].total < plan_eval:
+                     plan_eval = consequence_result['result'].total
+                     result = consequence_result#['plan_params']
+        
+        #self.Experiment_Logger.write('Plan selected ' + Utilities.print_dict(plan))
+
+        return result 
 
 #        update_beliefs populates the agent's belief base and return information necessary for executing rules
     def update_beliefs(self):
         self.Experiment_Logger.write('Updating Beliefs')
         
         rule_info = {}
-
-############ debug ####################
-        condition1 = True
-        condition2 = False
-#######################################
+              
         
 #==============================================================================
 #         msgs = 0#messages from planners
@@ -308,29 +220,12 @@ class ethical_engine():
                 #TODO check with Louise if it is okay doing this here rather than inside a rule
                 #doing it in a rule would need some careful refactoring to make that work properly
                 self.agent.drop_belief('at_goal')
-                self.agent.add_belief('revert_plan')
+                self.agent.add_belief('new_plan')
                 #self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
                 self.Experiment_Logger.write('human not in danger')
             else:           
                 self.agent.add_belief('human_in_danger')
-                plan_labels = []
-                for label in range(len(self.consequence_results)):
-                    plan_labels.append(str(label))
-                self.agent.add_belief_value('plans', plan_labels)
-                result_dict = dict(zip(plan_labels, self.consequence_results))
-                self.agent.add_belief_value('scores', result_dict)
-                #TODO set conditions properly. One option is self.consequence_results[0][robot_actor_dist]
-                #the distance between the two actors at the start, other facts could be added to the message dict from Consequence_para
-                if condition1:
-                    self.agent.add_belief('weights_1')
-                    self.agent.drop_belief('weights_2')
-                elif condition2:
-                    self.agent.add_belief('weights_2')
-                    self.agent.drop_belief('weights_1')
-                else:
-                    self.agent.drop_belief('weights_1')
-                    self.agent.drop_belief('weights_2')
-                
+                self.agent.add_belief('new_plan')
                 #consequence_result = self.compare_plans(consequence_results)
                 #if consequence_result <> None:
                 #    self.plan = consequence_result['plan_params']

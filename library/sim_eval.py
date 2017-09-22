@@ -85,6 +85,8 @@ class sim_evaluator():
         self.plan_params['type'] = self.plan
         if 'ROBOT_plan' in self.settings:
             self.plan_params['position'] =self.settings['ROBOT_plan']['position']
+        elif  'HEURISTIC_MODE' in self.settings:
+            self.plan_params['position'] = [params[0][0], params[0][1]]
         elif self.grad == 'X':#grad set to X to indicate X is constant in path sp parameter is just the Y value
             self.plan_params['position'] = [self.intercept,params[0][0]]
         else:
@@ -94,7 +96,10 @@ class sim_evaluator():
                 print params
                         
         self.plan_params['point_pos'] = (0,0)#currently fixed for testing but can be added as optimisation parameters
-        self.plan_params['speed'] = params[0][1]
+        if  'HEURISTIC_MODE' in self.settings:
+            self.plan_params['speed'] = 0.5
+        else:
+            self.plan_params['speed'] = params[0][1]
 
         human = 'HUMAN_A'#assumes both humans are going at the same speed. TODO remove the need for this assumtion
         human_speed = self.settings[human + '_speed_factor']

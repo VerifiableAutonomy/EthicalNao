@@ -186,6 +186,8 @@ class Agent:
         self.num_rules = self.num_rules + 1
 
     def best_of(self, listb, comp_function):
+        if type(listb()) != list:
+            return listb
         best = listb()[0]
         for x in listb():
             if (comp_function(x, best)):

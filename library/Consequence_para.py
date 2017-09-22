@@ -584,7 +584,7 @@ class ConsequenceEngine():
         results['inter_rob_dists'] = robot_actor_dists#return the list of inter-robot dists so whether to warn can be evaluated by the controller
         
         #put the plan score result in the message q
-        self.plan_eval_q.put({'result':result,'plan_params':plan_params})#, 'graph':self.graphs[self.__self_name]
+        self.plan_eval_q.put({'result':result,'plan_params':plan_params, 'robot_actor_dist':robot_actor_dists[0]})#, 'graph':self.graphs[self.__self_name]
         print 'q-size = ',self.plan_eval_q.qsize()
 
         self.__logger.write(score)

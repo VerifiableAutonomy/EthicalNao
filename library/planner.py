@@ -87,6 +87,12 @@ class Planner():
                     self.Experiment_Logger.write(self.plan + ' plan sim time = ' + str(time.time()-start)) 
                     #consequence_results = sim_evaluator.consequence_results
                     #TODO set plan counter to 1: plan_counter is a shared parameter with the reasoner of how many messages to wait for before starting to compare
+                elif 'HEURISTIC_MODE' in self.settings:
+                    #calculate the destinations of 3 plausible plans - the midpoint of the human path, a 1/3 and a 2/3 point
+                    for i in range(2,5):
+                        path_idx = int(len(sim_evaluator.current_situation['path'])*(i/6.0))
+                        opt_score = sim_evaluator.calculate_score(numpy.array([[ sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1] ]]))
+                    self.Experiment_Logger.write(self.plan + ' plan sim time = ' + str(time.time()-start)) 
                 else:
                     #set initial test points apprpriate to the situation
                     start = time.time()#debug

@@ -39,6 +39,7 @@ exp_dur 6
 do_plotting True
 plot_template False
 MAX_SCORE 10
+HEURISTIC_MODE True
 #Weights for ethical score calc
 W_danger_distance 1
 W_robot_walking_dist 1
