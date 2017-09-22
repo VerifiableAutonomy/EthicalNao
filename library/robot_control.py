@@ -51,7 +51,7 @@ class robot_controller():
         self.Experiment_Logger = Utilities.Logger('ROBOT_control')
         self.Experiment_Logger.write('Generating robot objects')
         self.objective = self.settings['ROBOT_objective']
-        
+        self.start_time = time.time()
  
 ########create graphs for self and humans in the experiment##############
         #plan_types = ['move','warn','point']
@@ -96,15 +96,20 @@ class robot_controller():
     
     #ACTIONS
     def move_to_target_action(self,robot,action_info):
-        #plan and execute robot motion
-        #plan = action_info['plan']
-        robot.speed_factor = action_info['plan']['speed']
-        # Subject to change
-        robot_motion = action_info['motion_command']
-        next_position_robot = robot_motion['next_position']
-        self.Experiment_Logger.write('target ' + str(next_position_robot[0])+' '+str(next_position_robot[1]))
-        robot.go_to_position(next_position_robot[0], next_position_robot[1])
-        #robot.speak_text('move to target')#debug
+        end = time.time()
+        dur = end - self.start_time
+        
+        if dur >= self.settings['update_rate']:#if it has been long enough since the robot was last commanded
+            self.start_time = end#restart the timer and command the robot             
+            #plan and execute robot motion
+            #plan = action_info['plan']
+            robot.speed_factor = action_info['plan']['speed']
+            # Subject to change
+            robot_motion = action_info['motion_command']
+            next_position_robot = robot_motion['next_position']
+            self.Experiment_Logger.write('target ' + str(next_position_robot[0])+' '+str(next_position_robot[1]))
+            robot.go_to_position(next_position_robot[0], next_position_robot[1])
+            #robot.speak_text('move to target')#debug
             
     def stop_action(self,robot,action_info):
         robot.stop_robot()
@@ -194,7 +199,7 @@ class robot_controller():
         #compare results and selct and execute plan
         #check for experiment end conditions to break out of loop, and set end_flag so CE_processes end
         for sim_steps in range(self.settings['exp_dur']):
-            start = time.time()
+            #start = time.time()
 
             #select the appropriate hypothesis of human knowledge to be used by all the CEs
             
@@ -237,13 +242,7 @@ class robot_controller():
                 except:
                     self.ethical_engine.execute_a_rule(None, rule_info)
                 
-                end = time.time()
-                dur = end - start
                 
-                try:
-                    time.sleep(self.settings['update_rate']-dur)
-                except:
-                    self.Experiment_Logger.write('long dur =' + str(dur))
                 
                 if self.tracker:
                     for human in self.settings['humans']:#for each human in the experiment
