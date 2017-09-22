@@ -109,6 +109,9 @@ class Agent:
 
     def and_support(self, belief1, belief2):
         b1 = belief1()
+        #b2 = belief2()
+        #print 'b1 ', b1, type(b1) == list
+        #print 'b2', b2, type(b2) == list
         if (b1 == 1):
             return belief2()
         elif (type(b1) == list):
@@ -186,6 +189,8 @@ class Agent:
         self.num_rules = self.num_rules + 1
 
     def best_of(self, listb, comp_function):
+        if type(listb()) != list:
+            return listb
         best = listb()[0]
         for x in listb():
             if (comp_function(x, best)):
