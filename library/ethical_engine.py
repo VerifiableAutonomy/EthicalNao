@@ -14,6 +14,7 @@ import Queue
 import os
 import ast
 import sys
+import time
 
 class ethical_engine():
     def __init__(self, robot_controller):
@@ -88,13 +89,13 @@ class ethical_engine():
         self.agent.add_belief('warning_given')
         self.Experiment_Logger.write('Warning given at ' + str(current_position[0]) + ' ' + str(current_position[1]))
         #robot.speak_text('vocal warning')#debug
-        print 'vocal_warning_rule'
+        #print 'vocal_warning_rule'
         
     def vocal_warning_recieved_rule(self, robot, rule_info):
         if not (self.debugging()):
             self.ce.vocal_warning_received_action(robot, rule_info)
         #robot.speak_text('vocal warning heard')#debug
-        print 'vocal_warning_recieved_rule'
+        #print 'vocal_warning_recieved_rule'
      
     def pointed_warning_rule(self, robot, rule_info):
         if not (self.debugging()):
@@ -104,13 +105,13 @@ class ethical_engine():
         self.agent.add_belief('warning_given')
         self.Experiment_Logger.write('Warning given at ' + str(current_position[0]) + ' ' + str(current_position[1]))
 #        robot.speak_text('pointed warning')#debug
-        print 'pointed_warning_rule'
+        #print 'pointed_warning_rule'
         
     def pointed_warning_recieved_rule(self, robot, rule_info):
         if not (self.debugging()):
             self.ce.pointed_warning_received_action(robot, rule_info)
 #        robot.speak_text('pointed warning heard')#debug
-        print 'pointed_warning_recieved_rule'
+        #print 'pointed_warning_recieved_rule'
        
         
 #       Rules for stopping stuff 
@@ -122,25 +123,25 @@ class ethical_engine():
         #for _ in range(3):
         #    self.robot_controller.results_q.task_done()
 #        robot.speak_text('stop')#debug
-        print 'stop_rule'
+        #print 'stop_rule'
         
     def stop_moving_rule(self, robot, rule_info):
         if not (self.debugging()):
             self.robot_controller.stop_action(robot, rule_info)
         self.agent.add_belief('stopped_moving')
-        print 'stop_moving_rule'
+        #print 'stop_moving_rule'
 #        Rules for motion
     def movement_rule(self, robot, rule_info):        
         if not (self.debugging()):
             self.robot_controller.move_to_target_action(robot, rule_info)            
-        print 'movement_rule'
+        #print 'movement_rule'
         
     def own_goal_rule(self, robot, rule_info):
         self.agent.drop_belief('revert_plan')
         self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
         #rule_info['plan'] = self.plan
             
-        print 'own_goal_rule'
+        #print 'own_goal_rule'
         
 #==============================================================================
 #     def update_plans_rule(self, robot, rule_info):
@@ -154,11 +155,19 @@ class ethical_engine():
 # 
 #==============================================================================
     def update_plan_rule(self, plan, robot, rule_info):
-        if plan['result'].total == 100:#if the best plan has a max score it means all the plans failed so default to going to own goal
+        
+        scores = self.agent.belief_value(self.agent.B('scores'))
+        #print "plan = ",scores[plan]['plan_params']
+        #for score in scores.values():
+        #    print score['result'].total
+        #time.sleep(10)
+        if scores[plan]['result'].total == 100:#if the best plan has a max score it means all the plans failed so default to going to own goal
             self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
         else:
-            self.plan = plan['plan_params']
+            self.plan = scores[plan]['plan_params']
         self.agent.drop_belief('plans')
+        
+        #print 'plan updated to ',self.plan
 
     def compare_plans(self, plan1, plan2):
         scores = self.agent.belief_value(self.agent.B('scores'))
@@ -234,7 +243,7 @@ class ethical_engine():
 
 #        update_beliefs populates the agent's belief base and return information necessary for executing rules
     def update_beliefs(self):
-        self.Experiment_Logger.write('Updating Beliefs')
+        #self.Experiment_Logger.write('Updating Beliefs')
         
         rule_info = {}
 
@@ -260,7 +269,7 @@ class ethical_engine():
             result = self.results_q.get()
             no_intervention = result
             self.msgs = self.msgs + 1
-        
+            self.Experiment_Logger.write('msgs = ' + str(self.msgs))
         if self.msgs == 3:#if there are new plans from the planners then retrieve them   
             self.Experiment_Logger.write('New plan data')
             self.msgs = 0#reset the message counter
@@ -289,8 +298,40 @@ class ethical_engine():
             
             #print 'EE_2 q-size = ',self.plan_eval_q.qsize()
             #print 'q empty? ',self.plan_eval_q.empty()
-            self.Experiment_Logger.write('Plans evaluated = ' + str(len(consequence_results)))
-        
+            
+            #If human is closer to danger should choose the shortest path
+            #If human is further from danger should choose longest wait as prediction is harder so less accurate
+            self.Experiment_Logger.write('Plans evaluated = ' + str(len(self.consequence_results)))
+            
+#==============================================================================
+#             print "path length = ", no_intervention['path_length']
+#             for plan in self.consequence_results:
+#                 if plan['plan_params']['type'] == 'move':
+#                     print plan['plan_params']
+#                     print "WD ", plan['result'].robot_walking_dist, \
+#                             " DD ", plan['result'].danger_distance, \
+#                             " RS ", plan['result'].robot_speed, \
+#                             " WT ", plan['result'].wait_time, \
+#                             " RDD ", plan['result'].robot_danger_dist, \
+#                             " ROD ", plan['result'].robot_obj_dist
+#                     weights = self.weight_dict['weights_1']
+#                     total1 = weights['W_robot_walking_dist']*plan['result'].robot_walking_dist - \
+#                     weights['W_danger_distance']*plan['result'].danger_distance + \
+#                     weights['W_robot_speed']*plan['result'].robot_speed - \
+#                     weights['W_wait_time']* plan['result'].wait_time - \
+#                     weights['W_robot_danger_dist']* plan['result'].robot_danger_dist + \
+#                     weights['W_robot_obj_dist']* plan['result'].robot_obj_dist
+#                     print "total1 = ",total1
+#                     weights = self.weight_dict['weights_2']
+#                     total2 = weights['W_robot_walking_dist']*plan['result'].robot_walking_dist - \
+#                     weights['W_danger_distance']*plan['result'].danger_distance + \
+#                     weights['W_robot_speed']*plan['result'].robot_speed - \
+#                     weights['W_wait_time']* plan['result'].wait_time - \
+#                     weights['W_robot_danger_dist']* plan['result'].robot_danger_dist + \
+#                     weights['W_robot_obj_dist']* plan['result'].robot_obj_dist
+#                     print "total2 = ",total2
+#             time.sleep(10)
+#==============================================================================
 #==============================================================================
 #         if consequence_results['move']['inaction_danger']:#if inaction would be dangerous
 #             self.agent.add_belief('human_in_danger')
@@ -303,6 +344,8 @@ class ethical_engine():
 #==============================================================================
             #the retrieved plans will include updated human in danger information so update the associated belief
             #and the plan information
+            self.Experiment_Logger.write("DD " + str(no_intervention['danger_distance']))
+            d = sys.stdin.read(2)
             if no_intervention['danger_distance'] > self.settings['safe_dist']:#if human not in danger then stop the robot
                 self.agent.drop_belief('human_in_danger')
                 #TODO check with Louise if it is okay doing this here rather than inside a rule
@@ -321,16 +364,19 @@ class ethical_engine():
                 self.agent.add_belief_value('scores', result_dict)
                 #TODO set conditions properly. One option is self.consequence_results[0][robot_actor_dist]
                 #the distance between the two actors at the start, other facts could be added to the message dict from Consequence_para
-                if condition1:
+                
+                if no_intervention['path_length'] < self.settings['danger_close']:#human starts close to danger
                     self.agent.add_belief('weights_1')
                     self.agent.drop_belief('weights_2')
-                elif condition2:
+                elif no_intervention['path_length'] > self.settings['danger_far']:#human starts far from danger
                     self.agent.add_belief('weights_2')
                     self.agent.drop_belief('weights_1')
                 else:
                     self.agent.drop_belief('weights_1')
                     self.agent.drop_belief('weights_2')
-                
+                    
+                #print self.agent.beliefbase   
+                #time.sleep(10)
                 #consequence_result = self.compare_plans(consequence_results)
                 #if consequence_result <> None:
                 #    self.plan = consequence_result['plan_params']
@@ -359,7 +405,7 @@ class ethical_engine():
         
         self.robot_controller.travelled_path.append(current_position)#log travelled path            
         distance_to_target = (numpy.sum((numpy.array(current_position) - numpy.array(self.plan['position']))**2))**0.5
-        print 'dist ',distance_to_target
+        #print 'dist ',distance_to_target
         #print current_position
         if (distance_to_target < 0.1):
             self.agent.add_belief('at_goal')
@@ -401,7 +447,7 @@ class ethical_engine():
         return rule_info
         
     def execute_a_rule(self, robot, rule_info):
-        print 'execute a rule'
+        #print 'execute a rule'
         self.agent.reason(robot, rule_info)
 
 

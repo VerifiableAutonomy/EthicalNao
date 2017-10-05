@@ -542,7 +542,7 @@ class ConsequenceEngine():
             result = self.predict_and_evaluate_point(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
             #print 'point'
         if result:    
-            score = actor + ' goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' CD ' + str(result.closest_danger) + ' WD ' + str(result.robot_walking_dist) + ' S ' + str(result.robot_speed) + ' DD ' + str(result.danger_distance)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) +' Total ' + str(result.total)
+            score = actor + ' goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' CD ' + str(result.closest_danger) + ' WD ' + str(result.robot_walking_dist) + ' DD ' + str(result.danger_distance)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) +' Total ' + str(result.total)
         else:
             score = str(result)
         
@@ -584,10 +584,12 @@ class ConsequenceEngine():
         results['inter_rob_dists'] = robot_actor_dists#return the list of inter-robot dists so whether to warn can be evaluated by the controller
         
         #put the plan score result in the message q
-        self.plan_eval_q.put({'result':result,'plan_params':plan_params, 'robot_actor_dist':robot_actor_dists[0]})#, 'graph':self.graphs[self.__self_name]
-        print 'q-size = ',self.plan_eval_q.qsize()
-
+        #print self.__plan, plan_params
         self.__logger.write(score)
+        self.plan_eval_q.put({'result':result,'plan_params':plan_params, 'robot_actor_dist':robot_actor_dists[0]})#, 'graph':self.graphs[self.__self_name]
+        #print 'q-size = ',self.plan_eval_q.qsize()
+
+        
         return results
 
 

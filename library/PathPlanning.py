@@ -94,6 +94,9 @@ class Planner(FrozenObject.FrozenClass):
     def set_step(self, step):
         self.__step = step
         self.update_graph()
+        
+    def get_step(self):
+        return self.__step
 
     def make_default_graph(self):
         positions = {}

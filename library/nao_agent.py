@@ -1,11 +1,11 @@
 import time
-import bdiagent
+from bdiagent import Agent
 from library import Robot
 
 class NaoAgent(Agent):
 
-    def __init__(selfs):
-        Agent.__init__()
+    def __init__(self):
+        super(self.__class__,self).__init__()
 
     def getpercepts(self, beliefbase):
         return

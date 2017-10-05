@@ -243,8 +243,9 @@ def main(argv):
         #    robot.results_q.put(1)
         robot.CE_manager.join()
         #for plan in ['move','warn','point']: planners[plan].plan_process.join()
-        Tracker.stop()
-
+        if Tracker:
+            Tracker.stop()
+        for plan in ['move','warn','point']: planners[plan].plan_process.terminate()
         Experiment_Logger.write('Loop exited')
              
         for f in files:

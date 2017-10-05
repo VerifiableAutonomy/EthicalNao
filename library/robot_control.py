@@ -198,7 +198,9 @@ class robot_controller():
         #when all 3 plans have sent a message allow them all to do more processing
         #compare results and selct and execute plan
         #check for experiment end conditions to break out of loop, and set end_flag so CE_processes end
-        for sim_steps in range(self.settings['exp_dur']):
+        start = time.time()
+        #for sim_steps in range(self.settings['exp_dur'])
+        while time.time() - start < self.settings['exp_dur']:
             #start = time.time()
 
             #select the appropriate hypothesis of human knowledge to be used by all the CEs
@@ -232,7 +234,7 @@ class robot_controller():
                 
             rule_info = self.ethical_engine.update_beliefs()
             
-            print self.ethical_engine.agent.beliefbase          
+            #print self.ethical_engine.agent.beliefbase          
             if not self.end_flag.is_set():
                 
                 #as rule execution relies on a robot object which doesn't exist in debug mode 
@@ -269,13 +271,22 @@ class robot_controller():
                 robot.clean_up()
             #clean up the results_q
             msgs = self.ethical_engine.msgs
-            while msgs < 3:
-                print msgs
-                result = self.results_q.get()
-                msgs = msgs + 1            
+#==============================================================================
+#             while msgs > 0 and msgs < 3:
+#                 print "msgs = ", msgs
+#                 result = self.results_q.get()
+#                 msgs = msgs + 1            
+#==============================================================================
                 
-            for _ in range(3):
-                self.results_q.task_done()
+            #for _ in range(3):
+                #self.results_q.task_done()
+            
+            while True:
+                try:
+                    self.results_q.task_done()
+                except ValueError:
+                    print 'no more task dones needed'
+                    break
         
 #==============================================================================
 #     def CE_process(self, plan):

@@ -8,6 +8,7 @@ Created on Thu May 18 17:14:42 2017
 import Utilities
 import numpy as np#
 import sys
+import time
 
 #wrapper for predict all to accept and return numpy arrays
 
@@ -41,6 +42,16 @@ class sim_evaluator():
         
         #self.max_score = max_score#pass in the max_score that corresponds to a failed plan
         #print 'hum_loc ',self.human_location
+        if(self.settings['ROBOT_speed_factor'] <self.settings['HUMAN_A_speed_factor'] ):#if the robot will be slower
+            self.CE.change_step('HUMAN_A',0.25)#set the human to the default step size as it is faster
+            step = 0.25 * (self.settings['ROBOT_speed_factor']/self.settings['HUMAN_A_speed_factor'])#calculate smaller step size
+            self.CE.change_step('ROBOT',step)#reduce the step size for the robot
+        elif(self.settings['ROBOT_speed_factor']>self.settings['HUMAN_A_speed_factor']):#if the robot will be faster
+            self.CE.change_step('ROBOT',0.25)#set the robot to the default step size as it is faster
+            step = 0.25 * (self.settings['HUMAN_A_speed_factor']/self.settings['ROBOT_speed_factor'])#calculate smaller step size
+            self.CE.change_step('HUMAN_A',step)#reduce the step size for the robot   
+        
+        
         self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=self.human_goal, plot=plot)#.replace('XXX', actor)+actor)
         #calculate the max and min points on the human path that the robot can reach at max speed to set the bounds for the GP
         #for all plans this is slightly more restrictive than needed as robot won't need to walk all the way to the human path to succeed, esp. with warn and point
@@ -103,6 +114,9 @@ class sim_evaluator():
 
         human = 'HUMAN_A'#assumes both humans are going at the same speed. TODO remove the need for this assumtion
         human_speed = self.settings[human + '_speed_factor']
+
+        current_step = self.CE.graphs[human].get_step()
+        
         
         if(self.plan_params['speed']<human_speed):#if the robot will be slower
             self.CE.change_step(human,0.25)#set the human to the default step size as it is faster
@@ -112,7 +126,14 @@ class sim_evaluator():
             self.CE.change_step('ROBOT',0.25)#set the robot to the default step size as it is faster
             step = 0.25 * (human_speed/self.plan_params['speed'])#calculate smaller step size
             self.CE.change_step(human,step)#reduce the step size for the robot   
+            
+        #time.sleep(10)
+        #if the human step size has changed then recalculate the current_situation for the human as otherwise the step size is wrong
+        if self.CE.graphs[human].get_step() <> current_step:
+            self.current_situation = self.CE.predict_and_evaluate(human, start = self.human_location, goal=self.human_goal, plot=False)
 
+            
+        
         robot_plan = self.CE.predict_path('ROBOT', actor_start = self.robot_location, goal=self.plan_params['position'], plot=False)
         #set the robot location one step along the predicted path so it uses information based on where the robot will be when planning is finished
         self.robot_location = robot_plan['path'][1]
@@ -132,6 +153,8 @@ class sim_evaluator():
             except:#if no intercept it will raise an exception and set the search return to None
                 pass#this should never happen as robot path will enable it to get within earshot guaranteed, but if it can't position will be unchanged
         #have the CE calculate the score
+        
+        #print self.plan, self.plan_params['position']
         self.consequence_results = self.CE.predict_all(self.actor, self.plan_params, self.robot_location, self.human_location, self.human_goal, self.current_situation, Robot_Plan=robot_plan, plot=self.plot)
         
 #==============================================================================

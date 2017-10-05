@@ -1,6 +1,6 @@
 import time
 
-class Agent:
+class Agent(object):
     def __init__(self):
         self.beliefbase = {}
         self.rules = {}
@@ -96,7 +96,7 @@ class Agent:
         return lambda: self.believe_support(key, self.beliefbase)
 
     def believe_support(self, key, beliefbase):
-        print('checking '), key
+        #print('checking '), key
         if (key in beliefbase):
             return beliefbase[key]
         return 0
@@ -200,7 +200,7 @@ class Agent:
         if (key in self.beliefbase):
             return self.beliefbase[key]
         else:
-            print("ERROR: No value from sensors for ", key)
+            #print("ERROR: No value from sensors for ", key)
             return 0
 
     def done(self):

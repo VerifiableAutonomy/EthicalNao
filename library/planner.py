@@ -43,7 +43,9 @@ class Planner():
         
     def planning(self):
         #main planning process which in a loop calls plan optimiser which in turn invokes the CE
-        while not self.end_flag.is_set():
+        self.Experiment_Logger.write(str(self.end_flag.is_set()))
+        end_flag = False
+        while not end_flag:
             plot = False#set plotting to false to start with as otherwise there will be too many plots!
             if 'DEBUG_position_ROBOT' in self.settings:
                 robot_location = self.settings['DEBUG_position_ROBOT']                
@@ -72,30 +74,39 @@ class Planner():
                     in_danger = sim_evaluator.current_situation['in_danger']
                     danger_distance = sim_evaluator.current_situation['danger_distance']
                     closest_danger = sim_evaluator.current_situation['closest_danger']
+                    path_length = sim_evaluator.current_situation['distances_along_path'][-1]
             else:
                 in_danger = False
                 danger_distance = 100
                 closest_danger = None
-                
+            
+            self.Experiment_Logger.write('in danger = ' +  str(in_danger) + " danger_dist = " + str(danger_distance))   
             if in_danger:#only run the planner if the human is in danger
+                start = time.time()
                 if 'ROBOT_plan' in self.settings: 
                     plan_msg = self.settings['ROBOT_plan']
                     plan_msg['type'] = self.plan
                     
-                    start = time.time()
+                    #start = time.time()
                     opt_score = sim_evaluator.calculate_score(numpy.array([[ self.settings['ROBOT_plan']['position'][0],self.settings['ROBOT_plan']['speed'] ]]))
                     self.Experiment_Logger.write(self.plan + ' plan sim time = ' + str(time.time()-start)) 
                     #consequence_results = sim_evaluator.consequence_results
                     #TODO set plan counter to 1: plan_counter is a shared parameter with the reasoner of how many messages to wait for before starting to compare
                 elif 'HEURISTIC_MODE' in self.settings:
                     #calculate the destinations of 3 plausible plans - the midpoint of the human path, a 1/3 and a 2/3 point
+                    #print self.plan, ' path ',sim_evaluator.current_situation['path']
+                     
                     for i in range(2,5):
+                        #print self.plan, "len ", i, " = ", int(len(sim_evaluator.current_situation['path'])*(i/6.0))
+                        
                         path_idx = int(len(sim_evaluator.current_situation['path'])*(i/6.0))
+                        #print self.plan, i, " ", sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1]
                         opt_score = sim_evaluator.calculate_score(numpy.array([[ sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1] ]]))
-                    self.Experiment_Logger.write(self.plan + ' plan sim time = ' + str(time.time()-start)) 
+                        self.Experiment_Logger.write(str(sim_evaluator.current_situation['path']))
+                    self.Experiment_Logger.write(self.plan + 'HM plan sim time = ' + str(time.time()-start)) 
                 else:
                     #set initial test points apprpriate to the situation
-                    start = time.time()#debug
+                    #start = time.time()#debug
                     x_quart = abs((sim_evaluator.x_bounds[1]-sim_evaluator.x_bounds[0])/4)
                     x_mid = (sim_evaluator.x_bounds[1]+sim_evaluator.x_bounds[0])/2
                     x_lower_q = x_mid - x_quart
@@ -127,11 +138,12 @@ class Planner():
                     #TODO decide if we want the planner to return what it thinks is the optimal plan
                     #opt_vals = plan_opt.x_opt
                     #opt_score = plan_opt.fx_opt[0]                
-            
-                
+                        
+            end_flag = self.end_flag.is_set()
                 #self.results_q.put(sim_evaluator.current_situation)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
             #always send a results message even if no planning happened so the ethical engine knows whether or not the human is in danger
-            self.results_q.put({'danger_distance':danger_distance,'closest_danger':closest_danger})
+            #print self.plan
+            self.results_q.put({'danger_distance':danger_distance,'closest_danger':closest_danger, 'path_length':path_length})
             #self.results_q.put(output_msg)#put the output msg into the q
             self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
             self.Experiment_Logger.write('q joined')                

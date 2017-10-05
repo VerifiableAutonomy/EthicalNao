@@ -396,7 +396,7 @@ class Logger(object):#modified from Dieter's original to create separate log fil
         screen_message = self.name.ljust(20) + '> ' + text + '\n'
         log_message = [asc_time, self.name, text]
         log_message = list2txt(log_message, ';') + '\n'
-        self.terminal.write(screen_message)
+        #self.terminal.write(screen_message)
         log = open(self.filename, "a")
         log.write(log_message)
         log.close()
