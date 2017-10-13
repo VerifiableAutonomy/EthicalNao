@@ -300,6 +300,8 @@ class ConsequenceEngine():
                                 self.settings['W_wait_time']* score.wait_time - \
                                 self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
                                 self.settings['W_robot_obj_dist']* score.robot_obj_dist
+        else:
+            self.__logger.write('Plan fails.intercept_idx = ' + str(intercept_idx) + ' robot_in_danger = ' + str(robot_eval['in_danger']))
 #==============================================================================
 #             score['total'] =    self.settings['W_danger_distance']*score['danger_distance'] + \
 #                                 (self.settings['W_robot_walking_dist']*score['robot_walking_dist'] * \
@@ -376,6 +378,8 @@ class ConsequenceEngine():
         #else:
             #pass
                 
+        else:
+            self.__logger.write('Plan fails.intercept_idx = ' + str(intercept_idx) + ' warn idx = ' + str(warn_idx) + ' warn_dist = ' + str(warn_dist) + ' robot_in_danger = ' + str(robot_eval['in_danger']))
             
         return score
         
@@ -439,9 +443,11 @@ class ConsequenceEngine():
                                         self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
                                         self.settings['W_robot_obj_dist']* score.robot_obj_dist
                 else:
-                    self.__logger.write('human still in danger')
+                    self.__logger.write('plan fails, human still in danger')
                 
-            
+        else:
+            self.__logger.write('Plan fails.intercept_idx = ' + str(intercept_idx) + ' point idx = ' + str(point_idx) + ' point_dist = ' + str(point_dist) + ' robot_in_danger = ' + str(robot_eval['in_danger']))
+                
         return score
 
 
@@ -542,7 +548,7 @@ class ConsequenceEngine():
             result = self.predict_and_evaluate_point(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
             #print 'point'
         if result:    
-            score = actor + ' goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' CD ' + str(result.closest_danger) + ' WD ' + str(result.robot_walking_dist) + ' DD ' + str(result.danger_distance)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) +' Total ' + str(result.total)
+            score = actor + ' robot goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' WD ' + str(result.robot_walking_dist)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) + ' ROD ' + str(result.robot_obj_dist) + ' CD ' + str(result.closest_danger) + ' DD ' + str(result.danger_distance) +' Total ' + str(result.total)
         else:
             score = str(result)
         
@@ -586,6 +592,7 @@ class ConsequenceEngine():
         #put the plan score result in the message q
         #print self.__plan, plan_params
         self.__logger.write(score)
+        self.__logger.write('Robot Loc = ' + str(robot_location) + ' Human Loc = ' + str(human_location))
         self.plan_eval_q.put({'result':result,'plan_params':plan_params, 'robot_actor_dist':robot_actor_dists[0]})#, 'graph':self.graphs[self.__self_name]
         #print 'q-size = ',self.plan_eval_q.qsize()
 

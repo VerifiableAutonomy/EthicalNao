@@ -23,6 +23,8 @@ ROBOT_start_angle 0
 ROBOT_start [-0.7,0]
 ROBOT_speed_factor 0.5
 ROBOT_objective (0,0)
+#plan_types ['move','warn','point']
+plan_types ['move']
 min_speed 0.1
 max_speed 0.5
 #robot pre-determined plan used for debugging
@@ -52,6 +54,13 @@ W_robot_obj_dist 1
 #weight setting thresholds
 danger_close 1
 danger_far 2
+#much worse thresholds, currently set to helpful index values to help test what the values should be
+DT_robot_walking_dist 1
+DT_robot_speed 2
+DT_danger_distance -3
+DT_robot_danger_dist -4
+DT_robot_obj_dist 5
+DT_wait_time -6
 #GP parameters
 acquisition_type 'EI'
 max_iter 3

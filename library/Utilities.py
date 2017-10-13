@@ -503,3 +503,11 @@ class Ethical_Score():
         self.robot_obj_dist = 2
         self.wait_time = 0
         self.total = 100
+        
+    def get_vals(self):
+        return {'robot_walking_dist': self.robot_walking_dist, \
+                'robot_speed': self.robot_speed, \
+                'danger_distance' : self.danger_distance, \
+                'robot_danger_dist': self.robot_danger_dist, \
+                'robot_obj_dist' : self.robot_obj_dist, \
+                'wait_time' : self.wait_time}

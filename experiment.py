@@ -182,7 +182,7 @@ def main(argv):
     end_flag = mp.Event()
     
     planners = {}
-    for plan in ['move','warn','point']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, end_flag)
+    for plan in settings['plan_types']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, end_flag)
 
     #create the robot object
     Experiment_Logger.write('Generating Ethical Robot')
@@ -237,7 +237,7 @@ def main(argv):
         #CE_processes = {}
         #for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
         #for plan in ['move','warn','point']: CE_processes[plan].start()
-        for plan in ['move','warn','point']: planners[plan].plan_process.start()
+        for plan in settings['plan_types']: planners[plan].plan_process.start()
 
         #for _ in range(3):
         #    robot.results_q.put(1)
@@ -245,7 +245,7 @@ def main(argv):
         #for plan in ['move','warn','point']: planners[plan].plan_process.join()
         if Tracker:
             Tracker.stop()
-        for plan in ['move','warn','point']: planners[plan].plan_process.terminate()
+        for plan in settings['plan_types']: planners[plan].plan_process.terminate()
         Experiment_Logger.write('Loop exited')
              
         for f in files:
@@ -300,16 +300,21 @@ def main(argv):
 #########################
 
     #all robots should now be in position so start them going
-    for plan in ['move','warn','point']: planners[plan].plan_process.start()#start the CE processes
+    for plan in settings['plan_types']: planners[plan].plan_process.start()#start the CE processes
     for _ in range(len(settings['humans'])+1): robot_q.put('GO!')    
-
+    Experiment_Logger.write('Experiment Started')
     #Wait for all robot control processes to end before grabbing log data
     for human in settings['humans']: humans[human].plan_process.join()
     #for plan in ['move','warn','point']: robot.CE_processes[plan].join()
     robot.CE_manager.join()
     
     
-    Experiment_Logger.write('Loop exited')
+    Experiment_Logger.write('Experiment finished')
+    for plan in settings['plan_types']: 
+        try:
+            planners[plan].plan_process.terminate()
+        except:
+            print "process already finished"
     #Camera.stop_capture()
     Tracker.stop()
     #HTMLlog.log2html('Default_Log.txt')#converting the log text files to html now happens in a separate script
