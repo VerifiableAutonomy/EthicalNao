@@ -96,13 +96,31 @@ class Planner():
                     #calculate the destinations of 3 plausible plans - the midpoint of the human path, a 1/3 and a 2/3 point
                     #print self.plan, ' path ',sim_evaluator.current_situation['path']
                      
-                    for i in range(2,5):
-                        #print self.plan, "len ", i, " = ", int(len(sim_evaluator.current_situation['path'])*(i/6.0))
+                    target_points = [sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx]]#init target array with this point
+                    idx_step_size = int(0.25/sim_evaluator.CE.graphs['HUMAN_A'].get_step())#step in idx needed to get additional points, set to be 0.5m from min point
+                    if sim_evaluator.xy_min_idx+idx_step_size <len(sim_evaluator.current_situation['path']):
+                        target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+idx_step_size])
+                        if sim_evaluator.xy_min_idx+2*idx_step_size <len(sim_evaluator.current_situation['path']):
+                            target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+2*idx_step_size])                    
+                    else:
+                        target_points.append(sim_evaluator.current_situation['path'][-1])
                         
-                        path_idx = int(len(sim_evaluator.current_situation['path'])*(i/6.0))
-                        #print self.plan, i, " ", sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1]
-                        opt_score = sim_evaluator.calculate_score(numpy.array([[ sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1] ]]))
-                        self.Experiment_Logger.write(str(sim_evaluator.current_situation['path']))
+                    for target in self.settings['tracked_targets']:#add all the target points as potential goals
+                        target_points.append(self.tracker.get_position(target)[0:2])
+                        
+                    for target_point in target_points:
+                        print target_point
+                        opt_score = sim_evaluator.calculate_score(numpy.array([[ target_point[0], target_point[1] ]]))
+                        
+#==============================================================================
+#                     for i in range(2,5):
+#                         #print self.plan, "len ", i, " = ", int(len(sim_evaluator.current_situation['path'])*(i/6.0))
+#                         
+#                         path_idx = int(len(sim_evaluator.current_situation['path'])*(i/6.0))
+#                         #print self.plan, i, " ", sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1]
+#                         opt_score = sim_evaluator.calculate_score(numpy.array([[ sim_evaluator.current_situation['path'][path_idx][0], sim_evaluator.current_situation['path'][path_idx][1] ]]))
+#                         self.Experiment_Logger.write(str(sim_evaluator.current_situation['path']))
+#==============================================================================
                     self.Experiment_Logger.write(self.plan + 'HM plan sim time = ' + str(time.time()-start)) 
                 else:
                     #set initial test points apprpriate to the situation

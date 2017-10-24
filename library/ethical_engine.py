@@ -67,10 +67,10 @@ class ethical_engine():
         #Several rules with AND in the beliefs so which rule triggers determines comparison weights
         #self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_1')), self.compare_plans_1, self.update_plan_rule)
         #self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_2')), self.compare_plans_2, self.update_plan_rule)
-        self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('danger_close')), self.compare_plans_WD, self.update_plan_rule)
-        self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('danger_far')), self.compare_plans_DD, self.update_plan_rule)
+        self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('danger_close')), self.compare_plans_asimov_WD, self.update_plan_rule)
+        self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('danger_far')), self.compare_plans_asimov_WT, self.update_plan_rule)
         #if none of the other conditions are met do the comparison with a base set of weights
-        self.agent.add_pick_best_rule(self.agent.B('plans'), self.compare_plans_ROD, self.update_plan_rule)#default to prioritize Robot objective distance
+        self.agent.add_pick_best_rule(self.agent.B('plans'), self.compare_plans_asimov, self.update_plan_rule)#default to prioritize Robot objective distance
         self.agent.add_condition_rule(self.agent.AND(self.agent.B('all_humans_stopped'), self.agent.B('at_goal')), self.stop_rule)#TODO this would be own_goal I think, but the human not moving would be identified as not in danger by the planner so the previous rule will cover the situation
         self.agent.add_condition_rule(self.agent.AND(self.agent.B('at_goal'), self.agent.NOT(self.agent.B('stopped_moving'))), self.stop_moving_rule)
         self.agent.add_condition_rule(self.agent.NOT(self.agent.B('at_goal')), self.movement_rule)
@@ -254,7 +254,7 @@ class ethical_engine():
         #print "plan 1 DD", scores[plan1]['plan_params']
         #print "plan 2 DD", scores[plan2]['plan_params']
         
-        if scores[plan1]['result'].danger_distance < scores[plan2]['result'].danger_distance:
+        if scores[plan1]['result'].danger_distance > scores[plan2]['result'].danger_distance:
             for component in plan1_c:
                 if component <> 'danger_distance':
                     if self.much_worse(plan1_c[component], plan2_c[component], self.settings['DT_' + component]):
@@ -287,6 +287,110 @@ class ethical_engine():
                     if self.much_worse(plan2_c[component], plan1_c[component], self.settings['DT_' + component]):
                         return 1 #i.e., select plan2                    
             return 0
+            
+    def compare_plans_WT(self, plan1, plan2):
+        scores = self.agent.belief_value(self.agent.B('scores'))
+        plan1_c = scores[plan1]['result'].get_vals()
+        plan2_c = scores[plan2]['result'].get_vals()
+        
+        #print "plan 1 ROD", scores[plan1]['plan_params']
+        #print "plan 2 ROD", scores[plan2]['plan_params']
+        
+        if scores[plan1]['result'].wait_time > scores[plan2]['result'].wait_time:
+            for component in plan1_c:
+                if component <> 'wait_time':
+                    if self.much_worse(plan1_c[component], plan2_c[component], self.settings['DT_' + component]):
+                        return 0 #i.e., select plan2                    
+            return 1 #i.e., select plan 1. It will only get here if no components are much_worse as that causes it to return before getting to the end of the loop
+        else:
+            for component in plan1_c:
+                if component <> 'wait_time':
+                    if self.much_worse(plan2_c[component], plan1_c[component], self.settings['DT_' + component]):
+                        return 1 #i.e., select plan2                    
+            return 0
+            
+    def compare_plans_asimov(self, plan1, plan2):
+        scores = self.agent.belief_value(self.agent.B('scores'))
+        plan1_c = scores[plan1]['result'].get_vals()
+        plan2_c = scores[plan2]['result'].get_vals()
+        
+        #select the plan that puts the robot furthest from danger
+        if plan1_c['robot_danger_dist'] > plan2_c['robot_danger_dist']:
+            first = plan1_c
+            second = plan2_c
+            return_val = 1
+        else:
+            first = plan2_c
+            second = plan1_c
+            return_val = 0
+            
+        #check if the selected plan makes the robot much further from its own goal, and select the other plan if it is
+        if self.much_worse(first,second, self.settings['DT_robot_obj_dist']):
+            first_old = first
+            first = second
+            second = first_old
+            return_val ^= 1 #flip bit to select the other plan
+        
+        #check if the selected plan makes the human much more in danger, and select the other plan if it is        
+        if self.much_worse(first,second, self.settings['DT_danger_distance']):
+            first_old = first
+            first = second
+            second = first_old
+            return_val ^= 1 #flip bit to select the other plan
+            
+        return return_val
+            
+    def compare_plans_asimov_WT(self, plan1, plan2):
+        scores = self.agent.belief_value(self.agent.B('scores'))
+        plan1_c = scores[plan1]['result'].get_vals()
+        plan2_c = scores[plan2]['result'].get_vals()
+        
+        thresholds = ['DT_robot_danger_dist','DT_robot_obj_dist','DT_danger_distance']
+        
+        #select the plan that puts the robot furthest from danger
+        if plan1_c['robot_danger_dist'] > plan2_c['wait_time']:
+            first = plan1_c
+            second = plan2_c
+            return_val = 1
+        else:
+            first = plan2_c
+            second = plan1_c
+            return_val = 0
+        
+        for threshold in thresholds:
+            if self.much_worse(first,second, threshold):
+                first_old = first
+                first = second
+                second = first_old
+                return_val ^= 1 #flip bit to select the other plan
+                   
+        return return_val    
+    
+    def compare_plans_asimov_WD(self, plan1, plan2):
+        scores = self.agent.belief_value(self.agent.B('scores'))
+        plan1_c = scores[plan1]['result'].get_vals()
+        plan2_c = scores[plan2]['result'].get_vals()
+        
+        thresholds = ['DT_robot_danger_dist','DT_robot_obj_dist','DT_danger_distance']
+        
+        #select the plan that puts the robot furthest from danger
+        if plan1_c['robot_danger_dist'] > plan2_c['robot_walking_dist']:
+            first = plan1_c
+            second = plan2_c
+            return_val = 1
+        else:
+            first = plan2_c
+            second = plan1_c
+            return_val = 0
+        
+        for threshold in thresholds:
+            if self.much_worse(first,second, threshold):
+                first_old = first
+                first = second
+                second = first_old
+                return_val ^= 1 #flip bit to select the other plan
+                   
+        return return_val    
             
     def compare_plans_1(self, plan1, plan2):
         scores = self.agent.belief_value(self.agent.B('scores'))
@@ -452,8 +556,8 @@ class ethical_engine():
                 self.agent.add_belief_value('plans', plan_labels)
                 result_dict = dict(zip(plan_labels, self.consequence_results))
                 self.agent.add_belief_value('scores', result_dict)
-                print plan_labels
-                print result_dict
+                #print plan_labels
+                #print result_dict
                 #TODO set conditions properly. One option is self.consequence_results[0][robot_actor_dist]
                 #the distance between the two actors at the start, other facts could be added to the message dict from Consequence_para
                 

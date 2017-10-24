@@ -55,23 +55,25 @@ class sim_evaluator():
         self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=self.human_goal, plot=plot)#.replace('XXX', actor)+actor)
         #calculate the max and min points on the human path that the robot can reach at max speed to set the bounds for the GP
         #for all plans this is slightly more restrictive than needed as robot won't need to walk all the way to the human path to succeed, esp. with warn and point
-        distances_to_path = Utilities.distance2points(np.array(robot_location), self.current_situation['path'])
+        self.distances_to_path = Utilities.distance2points(np.array(robot_location), self.current_situation['path'])
         speed_ratio = ROBOT_MAX_S/0.25
         x_lim = []
-        for idx,distance in enumerate(distances_to_path):
+        x_idxs = []
+        for idx,distance in enumerate(self.distances_to_path):
             if distance <= self.current_situation['distances_along_path'][idx]*speed_ratio:
                 x_lim.append(self.current_situation['path'][idx][0])#append valid X values to the current list
-        
+                x_idxs.append(idx)
         #search x_lims to find range of values for x
         x_lim = np.array(x_lim)
         try:
             self.x_bounds = (np.min(x_lim),np.max(x_lim))
+            self.xy_min_idx = x_idxs[0]
         except:
             if plan == 'move':
                 print 'hum loc ', self.human_location
                 print 'hum goal ', self.human_goal
                 print 'hum path ', self.current_situation['path']
-                print 'dists ', distances_to_path
+                print 'dists ', self.distances_to_path
             
         #use path to estimate line parameters so Ys can be calculated from suggested Xs
         #print self.current_situation['path']

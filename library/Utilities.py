@@ -496,11 +496,11 @@ class Ethical_Score():
     def __init__(self):
         #init all fields to the fail case
         self.closest_danger = None#return the closest danger as that is what is being warned about and needs to be added to human knowledge if an ack is received
-        self.robot_walking_dist = 2
+        self.robot_walking_dist = 3
         self.robot_speed = 0.5
-        self.danger_distance = 0
-        self.robot_danger_dist = 0
-        self.robot_obj_dist = 2
+        self.danger_distance = -1
+        self.robot_danger_dist = -1
+        self.robot_obj_dist = 3
         self.wait_time = 0
         self.total = 100
         
