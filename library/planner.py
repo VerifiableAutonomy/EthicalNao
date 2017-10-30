@@ -79,6 +79,15 @@ class Planner():
                 in_danger = False
                 danger_distance = 100
                 closest_danger = None
+                path_length = sim_evaluator.current_situation['distances_along_path'][-1]
+                sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, human_location, None, self.settings)
+                #evaluate possible robot goals if the human is stationary
+                for target in self.settings['tracked_targets']:#add all the target points as potential goals
+                        if self.tracker:
+                            t = self.tracker.get_position(target)[0:2]
+                        else:
+                            t = self.settings['DEBUG_' + target]
+                        opt_score = sim_evaluator.calculate_score(numpy.array([[ t[0], t[1] ]]))
             
             self.Experiment_Logger.write('in danger = ' +  str(in_danger) + " danger_dist = " + str(danger_distance))   
             if in_danger:#only run the planner if the human is in danger
@@ -104,9 +113,13 @@ class Planner():
                             target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+2*idx_step_size])                    
                     else:
                         target_points.append(sim_evaluator.current_situation['path'][-1])
-                        
+                    
+                    
                     for target in self.settings['tracked_targets']:#add all the target points as potential goals
-                        target_points.append(self.tracker.get_position(target)[0:2])
+                        if self.tracker:
+                            target_points.append(self.tracker.get_position(target)[0:2])
+                        else:
+                            target_points.append(self.settings['DEBUG_' + target])
                         
                     for target_point in target_points:
                         print target_point

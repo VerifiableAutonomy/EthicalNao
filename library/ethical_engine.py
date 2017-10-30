@@ -62,7 +62,7 @@ class ethical_engine():
         self.agent.add_condition_rule(self.agent.B('too_close_to_a_human'), self.stop_rule)
         self.agent.add_condition_rule(self.agent.B('vocal_warning_acknowledged'), self.vocal_warning_recieved_rule)
         self.agent.add_condition_rule(self.agent.B('pointed_warning_acknowledged'), self.pointed_warning_recieved_rule)
-        self.agent.add_condition_rule(self.agent.AND(self.agent.NOT(self.agent.B('human_in_danger')),self.agent.B('revert_plan')) , self.own_goal_rule)
+        #self.agent.add_condition_rule(self.agent.AND(self.agent.NOT(self.agent.B('human_in_danger')),self.agent.B('revert_plan')) , self.own_goal_rule)
         #self.agent.add_condition_rule(self.agent.AND(self.agent.B('human_in_danger'),self.agent.B('new_plan')), self.update_plans_rule)
         #Several rules with AND in the beliefs so which rule triggers determines comparison weights
         #self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_1')), self.compare_plans_1, self.update_plan_rule)
@@ -71,7 +71,7 @@ class ethical_engine():
         self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('danger_far')), self.compare_plans_asimov_WT, self.update_plan_rule)
         #if none of the other conditions are met do the comparison with a base set of weights
         self.agent.add_pick_best_rule(self.agent.B('plans'), self.compare_plans_asimov, self.update_plan_rule)#default to prioritize Robot objective distance
-        self.agent.add_condition_rule(self.agent.AND(self.agent.B('all_humans_stopped'), self.agent.B('at_goal')), self.stop_rule)#TODO this would be own_goal I think, but the human not moving would be identified as not in danger by the planner so the previous rule will cover the situation
+        self.agent.add_condition_rule(self.agent.AND(self.agent.B('all_humans_stopped'), self.agent.B('at_objective')), self.stop_rule)#TODO this would be own_goal I think, but the human not moving would be identified as not in danger by the planner so the previous rule will cover the situation
         self.agent.add_condition_rule(self.agent.AND(self.agent.B('at_goal'), self.agent.NOT(self.agent.B('stopped_moving'))), self.stop_moving_rule)
         self.agent.add_condition_rule(self.agent.NOT(self.agent.B('at_goal')), self.movement_rule)
         self.agent.add_condition_rule(self.agent.AND(self.agent.AND(self.agent.B('at_goal'), self.agent.B('warn_can_be_heard')),
@@ -325,14 +325,15 @@ class ethical_engine():
             return_val = 0
             
         #check if the selected plan makes the robot much further from its own goal, and select the other plan if it is
-        if self.much_worse(first,second, self.settings['DT_robot_obj_dist']):
-            first_old = first
-            first = second
-            second = first_old
-            return_val ^= 1 #flip bit to select the other plan
+        if self.agent.B('human_order'):#only care about robot objective if it comes from a human instruction
+            if self.much_worse(first['robot_obj_dist'],second['robot_obj_dist'], self.settings['DT_robot_obj_dist']):
+                first_old = first
+                first = second
+                second = first_old
+                return_val ^= 1 #flip bit to select the other plan
         
         #check if the selected plan makes the human much more in danger, and select the other plan if it is        
-        if self.much_worse(first,second, self.settings['DT_danger_distance']):
+        if self.much_worse(first['danger_distance'],second['danger_distance'], self.settings['DT_danger_distance']):
             first_old = first
             first = second
             second = first_old
@@ -345,7 +346,10 @@ class ethical_engine():
         plan1_c = scores[plan1]['result'].get_vals()
         plan2_c = scores[plan2]['result'].get_vals()
         
-        thresholds = ['DT_robot_danger_dist','DT_robot_obj_dist','DT_danger_distance']
+        metrics = ['robot_danger_dist']
+        if self.agent.B('human_order'):
+            metrics.append('robot_obj_dist')
+        metrics.append('danger_distance')
         
         #select the plan that puts the robot furthest from danger
         if plan1_c['robot_danger_dist'] > plan2_c['wait_time']:
@@ -357,8 +361,8 @@ class ethical_engine():
             second = plan1_c
             return_val = 0
         
-        for threshold in thresholds:
-            if self.much_worse(first,second, threshold):
+        for metric in metrics:
+            if self.much_worse(first[metric],second[metric], 'DT_' + metric):
                 first_old = first
                 first = second
                 second = first_old
@@ -371,8 +375,10 @@ class ethical_engine():
         plan1_c = scores[plan1]['result'].get_vals()
         plan2_c = scores[plan2]['result'].get_vals()
         
-        thresholds = ['DT_robot_danger_dist','DT_robot_obj_dist','DT_danger_distance']
-        
+        metrics = ['robot_danger_dist']
+        if self.agent.B('human_order'):
+            metrics.append('robot_obj_dist')
+        metrics.append('danger_distance')
         #select the plan that puts the robot furthest from danger
         if plan1_c['robot_danger_dist'] > plan2_c['robot_walking_dist']:
             first = plan1_c
@@ -383,8 +389,8 @@ class ethical_engine():
             second = plan1_c
             return_val = 0
         
-        for threshold in thresholds:
-            if self.much_worse(first,second, threshold):
+        for metric in metrics:
+            if self.much_worse(first[metric],second[metric], 'DT_' + metric):
                 first_old = first
                 first = second
                 second = first_old
@@ -445,7 +451,8 @@ class ethical_engine():
         condition1 = True
         condition2 = False
 #######################################
-        
+        if 'human_order' in self.settings:
+            self.agent.add_belief('human_order')
 #==============================================================================
 #         msgs = 0#messages from planners
 #             
@@ -600,10 +607,23 @@ class ethical_engine():
             
         
         self.robot_controller.travelled_path.append(current_position)#log travelled path            
-        distance_to_target = (numpy.sum((numpy.array(current_position) - numpy.array(self.plan['position']))**2))**0.5
+        distance_to_goal = (numpy.sum((numpy.array(current_position) - numpy.array(self.plan['position']))**2))**0.5
+        tracked_target_locs = []
+
+        if self.robot_controller.tracker:
+            for target in self.settings['tracked_targets']:
+                tracked_target_locs.append(self.robot_controller.tracker.get_position(target)[0:2])
+        else:
+            for target in self.settings['tracked_targets']:
+                tracked_target_locs.append(self.settings['DEBUG_' + target])
+            
+        for tracked_target_loc in tracked_target_locs:
+            distance_to_target = (numpy.sum((numpy.array(current_position) - numpy.array(tracked_target_loc))**2))**0.5
+            if distance_to_target < 0.3:
+                self.agent.add_belief('at_objective')
         #print 'dist ',distance_to_target
         #print current_position
-        if (distance_to_target < 0.1):
+        if (distance_to_goal < 0.1):
             self.agent.add_belief('at_goal')
             
         self.agent.drop_belief('warn_can_be_heard')

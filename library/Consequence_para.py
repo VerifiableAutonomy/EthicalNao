@@ -259,7 +259,7 @@ class ConsequenceEngine():
             
         score = Utilities.Ethical_Score()#create score obj, values default to fail case
             
-        if intercept_idx <> None and not robot_eval['in_danger']:#if there is an intercept point in the path
+        if intercept_idx <> None:# and not robot_eval['in_danger']:#if there is an intercept point in the path. new ethics allow the robot being in danger as a valid plan
 
 #==============================================================================
 #             print 'int point = ' + str(robot_eval['path'][intercept_idx]) + 'at idx ' + str(intercept_idx)
@@ -343,7 +343,7 @@ class ConsequenceEngine():
         #print rel_dists
         #print human_eval['path']
         #print robot_eval['path']
-        if intercept_idx == None and warn_idx <> None and not robot_eval['in_danger'] and warn_dist < self.settings['hearing_dist']:
+        if intercept_idx == None and warn_idx <> None and warn_dist < self.settings['hearing_dist']:# and not robot_eval['in_danger']:
             #add the warned danger to a temp copy of the human's knowledge and re-predict the human path
             current_graph = self.graphs[actor]
             current_graph_data = current_graph.get_data()#get a copy of the currently stored graph data
@@ -408,7 +408,7 @@ class ConsequenceEngine():
         point_dist = numpy.min(rel_dists)
         score = Utilities.Ethical_Score()#create score obj, values default to fail case
         
-        if intercept_idx == None and point_idx <> None and point_dist < self.settings['pointing_dist'] and not robot_eval['in_danger']:
+        if intercept_idx == None and point_idx <> None and point_dist < self.settings['pointing_dist']:# and not robot_eval['in_danger']:
        
             #so add the warned danger to a temp copy of the human's knowledge and re-predict the human path
                 current_graph = self.graphs[actor]
@@ -533,21 +533,34 @@ class ConsequenceEngine():
         else:
             robot_plan['in_danger'] = False
         #calculate goal distance from objective
-        robot_plan['obj_dist'] =  numpy.sum((numpy.array(self.settings['ROBOT_objective']) - numpy.array(robot_plan['goal']))**2)**0.5
+        if isinstance(self.settings['ROBOT_objective'], basestring) and self.__tracker:
+            obj_loc = self.__tracker.get_position(self.settings['ROBOT_objective'])[0:2]
+        else:
+            obj_loc = self.settings['ROBOT_objective']
+            
+        robot_plan['obj_dist'] =  numpy.sum((numpy.array(obj_loc) - numpy.array(robot_plan['goal']))**2)**0.5
         #pass both planned paths to a function that calculates distances between the robots at each time step
         #the graphs for human and robot are scaled for each plan so that one node in the graph is the distance travelled by that robot in one time step
         robot_actor_dists = self.predict_dists(robot_plan['path'], current_situation['path'])
         #pass the returned distances to evaluation functions (a different one for each plan type) to evaluate the plan
-        if self.__plan == 'move':
-            result = self.predict_and_evaluate_intercept(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
-            #print 'move'
-        elif self.__plan == 'warn':
-            result = self.predict_and_evaluate_warn(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
-            #print 'warn'
-        elif self.__plan == 'point':
-            result = self.predict_and_evaluate_point(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
-            #print 'point'
-        if result:    
+        if human_goal == None:
+            #score for only the robot so it gets put in the message q correctly
+            result = Utilities.Ethical_Score()
+            result.robot_danger_dist = robot_plan['danger_dist']
+            result.robot_obj_dist = robot_plan['obj_dist']
+            result.robot_walking_dist = robot_plan['distances_along_path'][-1]
+            
+        else:
+            if self.__plan == 'move':
+                result = self.predict_and_evaluate_intercept(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
+                #print 'move'
+            elif self.__plan == 'warn':
+                result = self.predict_and_evaluate_warn(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
+                #print 'warn'
+            elif self.__plan == 'point':
+                result = self.predict_and_evaluate_point(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
+                #print 'point'
+        if result and human_goal <> None:    
             score = actor + ' robot goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' WD ' + str(result.robot_walking_dist)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) + ' ROD ' + str(result.robot_obj_dist) + ' CD ' + str(result.closest_danger) + ' DD ' + str(result.danger_distance) +' Total ' + str(result.total)
         else:
             score = str(result)
