@@ -91,6 +91,7 @@ class robot_controller():
         
         self.CE_manager = mp.Process(target=self.CE_manager_proc)#manager process that decides on the plan to execute, and controls the robot
         self.end_flag = self.planners['move'].end_flag
+        self.pro_plans_flag = self.planners['move'].pro_plans_flag
         self.ethical_engine = ethical_engine.ethical_engine(self)
     
     
@@ -239,6 +240,7 @@ class robot_controller():
                 
                 #as rule execution relies on a robot object which doesn't exist in debug mode 
                 #need an exception to handle debug mode properly
+                self.Experiment_Logger.write(str(self.ethical_engine.agent.beliefbase))
                 try:
                     self.ethical_engine.execute_a_rule(robot, rule_info)
                 except:

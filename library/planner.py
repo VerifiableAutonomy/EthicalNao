@@ -21,7 +21,7 @@ import Utilities
 #planners[plan].plan_process.run()
 
 class Planner():
-    def __init__(self, settings, tracker, plan, results_q, plan_eval_q, end_flag):
+    def __init__(self, settings, tracker, plan, results_q, plan_eval_q, end_flag, pro_plans_flag):
         self.settings = settings#settings dictionary loaded from file in supervisor and shared with all modules
         self.tracker = tracker#Utilities.Tracker created in supervisor and shared with all modules
         self.plan = plan#plan type for this planner, ['move','warn','point']
@@ -40,6 +40,7 @@ class Planner():
         self.CE.set_speed_threshold(self.settings['speed_threshold'])
         self.plan_process = mp.Process(target=self.planning)
         self.Experiment_Logger.write('planner initalised')
+        self.pro_plans_flag = pro_plans_flag
         
     def planning(self):
         #main planning process which in a loop calls plan optimiser which in turn invokes the CE
@@ -69,8 +70,10 @@ class Planner():
             #if self.plan == 'move':
             #    print 'hg ',human_goal
             #    print 'hl ',human_location
+            
+            
+            sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, human_location, human_goal, self.settings)
             if human_goal <> None:
-                    sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, human_location, human_goal, self.settings)
                     in_danger = sim_evaluator.current_situation['in_danger']
                     danger_distance = sim_evaluator.current_situation['danger_distance']
                     closest_danger = sim_evaluator.current_situation['closest_danger']
@@ -79,18 +82,21 @@ class Planner():
                 in_danger = False
                 danger_distance = 100
                 closest_danger = None
-                path_length = sim_evaluator.current_situation['distances_along_path'][-1]
-                sim_evaluator = sim_eval.sim_evaluator('HUMAN_A', self.plan, plot, self.CE, robot_location, human_location, None, self.settings)
-                #evaluate possible robot goals if the human is stationary
+                path_length = 0
+                
+            self.Experiment_Logger.write('in danger = ' +  str(in_danger) + " danger_dist = " + str(danger_distance))   
+                
+            if self.plan == 'base':
                 for target in self.settings['tracked_targets']:#add all the target points as potential goals
                         if self.tracker:
                             t = self.tracker.get_position(target)[0:2]
                         else:
                             t = self.settings['DEBUG_' + target]
                         opt_score = sim_evaluator.calculate_score(numpy.array([[ t[0], t[1] ]]))
-            
-            self.Experiment_Logger.write('in danger = ' +  str(in_danger) + " danger_dist = " + str(danger_distance))   
-            if in_danger:#only run the planner if the human is in danger
+                        self.Experiment_Logger.write("plan goal = " + str([t[0], t[1]]))
+                #evaluate them
+            else:
+                self.pro_plans_flag.wait()
                 start = time.time()
                 if 'ROBOT_plan' in self.settings: 
                     plan_msg = self.settings['ROBOT_plan']
@@ -104,27 +110,28 @@ class Planner():
                 elif 'HEURISTIC_MODE' in self.settings:
                     #calculate the destinations of 3 plausible plans - the midpoint of the human path, a 1/3 and a 2/3 point
                     #print self.plan, ' path ',sim_evaluator.current_situation['path']
-                     
-                    target_points = [sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx]]#init target array with this point
+                    
+                    #change to aim for points further along path than minimum as it gets missed due to assumption that robot turning time is 0
+                    target_points = []#[sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx]]#init target array with this point
                     idx_step_size = int(0.25/sim_evaluator.CE.graphs['HUMAN_A'].get_step())#step in idx needed to get additional points, set to be 0.5m from min point
-                    if sim_evaluator.xy_min_idx+idx_step_size <len(sim_evaluator.current_situation['path']):
-                        target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+idx_step_size])
-                        if sim_evaluator.xy_min_idx+2*idx_step_size <len(sim_evaluator.current_situation['path']):
-                            target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+2*idx_step_size])                    
-                    else:
+                    try:
+                        if sim_evaluator.xy_min_idx+idx_step_size <len(sim_evaluator.current_situation['path']):
+                            target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+2])
+                            if sim_evaluator.xy_min_idx+2*idx_step_size <len(sim_evaluator.current_situation['path']):
+                                target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+4])                    
+                                if sim_evaluator.xy_min_idx+3*idx_step_size <len(sim_evaluator.current_situation['path']):
+                                    target_points.append(sim_evaluator.current_situation['path'][sim_evaluator.xy_min_idx+6])    
+                    except:
                         target_points.append(sim_evaluator.current_situation['path'][-1])
-                    
-                    
-                    for target in self.settings['tracked_targets']:#add all the target points as potential goals
-                        if self.tracker:
-                            target_points.append(self.tracker.get_position(target)[0:2])
-                        else:
-                            target_points.append(self.settings['DEBUG_' + target])
-                        
+                        self.Experiment_Logger.write("xy_min_idx error " + str(sim_evaluator.human_goal))
+                    if len(target_points)<2:
+                        target_points.append(sim_evaluator.current_situation['path'][-1])
+                                         
+                    #print " "
                     for target_point in target_points:
-                        print target_point
+                        #print target_point
                         opt_score = sim_evaluator.calculate_score(numpy.array([[ target_point[0], target_point[1] ]]))
-                        
+                        self.Experiment_Logger.write("plan goal = " + str([target_point[0], target_point[1]]))
 #==============================================================================
 #                     for i in range(2,5):
 #                         #print self.plan, "len ", i, " = ", int(len(sim_evaluator.current_situation['path'])*(i/6.0))
@@ -169,12 +176,12 @@ class Planner():
                     #TODO decide if we want the planner to return what it thinks is the optimal plan
                     #opt_vals = plan_opt.x_opt
                     #opt_score = plan_opt.fx_opt[0]                
-                        
+                #self.pro_plans_flag.clear()
             end_flag = self.end_flag.is_set()
                 #self.results_q.put(sim_evaluator.current_situation)#number of tested plans is returned via results_q to ethical_engine to say that planning has ended and how many plans there are to compare
             #always send a results message even if no planning happened so the ethical engine knows whether or not the human is in danger
             #print self.plan
-            self.results_q.put({'danger_distance':danger_distance,'closest_danger':closest_danger, 'path_length':path_length})
+            self.results_q.put({'plan': self.plan, 'danger_distance':danger_distance,'closest_danger':closest_danger, 'path_length':path_length})
             #self.results_q.put(output_msg)#put the output msg into the q
             self.results_q.join()#wait until the msgs from all 3 CEs are processed and a new one so notified to proceed
             self.Experiment_Logger.write('q joined')                

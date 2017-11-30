@@ -59,11 +59,12 @@ class ethical_engine():
         
         #believe_at_goal = self.agent.B('at_goal')
         #not_believe_at_goal = self.agent.NOT(self.a)
-        self.agent.add_condition_rule(self.agent.B('too_close_to_a_human'), self.stop_rule)
+        self.agent.add_condition_rule(self.agent.AND(self.agent.B('too_close_to_a_human'),self.agent.NOT(self.agent.B('all_humans_stopped'))), self.stop_moving_rule)
         self.agent.add_condition_rule(self.agent.B('vocal_warning_acknowledged'), self.vocal_warning_recieved_rule)
         self.agent.add_condition_rule(self.agent.B('pointed_warning_acknowledged'), self.pointed_warning_recieved_rule)
         #self.agent.add_condition_rule(self.agent.AND(self.agent.NOT(self.agent.B('human_in_danger')),self.agent.B('revert_plan')) , self.own_goal_rule)
         #self.agent.add_condition_rule(self.agent.AND(self.agent.B('human_in_danger'),self.agent.B('new_plan')), self.update_plans_rule)
+        self.agent.add_condition_rule(self.agent.B('pro_active_plans_needed'), self.plan_gen_trigger_rule)
         #Several rules with AND in the beliefs so which rule triggers determines comparison weights
         #self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_1')), self.compare_plans_1, self.update_plan_rule)
         #self.agent.add_pick_best_rule(self.agent.AND(self.agent.B('plans'), self.agent.B('weights_2')), self.compare_plans_2, self.update_plan_rule)
@@ -172,16 +173,21 @@ class ethical_engine():
         #for score in scores.values():
         #    print score['result'].total
         #time.sleep(10)
-        if scores[plan]['result'].total == 100:#if the best plan has a max score it means all the plans failed so default to going to own goal
-            self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-        else:
-            self.plan = scores[plan]['plan_params']
+        #if scores[plan]['result'].total == 100:#if the best plan has a max score it means all the plans failed so default to going to own goal
+        #    self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
+        #else:
+        self.plan = scores[plan]['plan_params']
         self.agent.drop_belief('plans')
         
         #print 'plan updated to ',self.plan
         self.Experiment_Logger.write('plan updated to ' + str(self.plan))
         #time.sleep(10)
 
+    
+    def plan_gen_trigger_rule(self, robot, rule_info):
+        self.robot_controller.pro_plans_flag.set()
+        self.agent.drop_belief('pro_active_plans_needed')
+        
     def compare_plans(self, plan1, plan2):
         scores = self.agent.belief_value(self.agent.B('scores'))
         
@@ -222,6 +228,31 @@ class ethical_engine():
         else:
             if (p1_c - p2_c) > threshold:#if p2 is smaller than p1
                 return 1
+            else:
+                return 0
+                
+    def much_worse2(self, p1_c, p2_c, threshold):
+        
+        if threshold < 0:#if it is a negative threshold we are trying to minimize
+            if p1_c > abs(threshold):#if p1_c is above the threshold it might be much worse
+                if p2_c > abs(threshold):#if p2_c is also above the threshold the relative values are compared
+                    if p1_c > p2_c:#as we are min if p1 is larger than p2 it is much worse
+                        return 1
+                    else:
+                        return 0
+                else:
+                    return 1
+            else:#if p1 is not above the threshold it can't be much worse regardless of the value of p2
+                return 0
+        else:#we are trying to maximize
+            if p1_c < abs(threshold):
+                if p2_c < abs(threshold):
+                    if p1_c < p2_c:
+                        return 1
+                    else:
+                        return 0
+                else:
+                    return 1
             else:
                 return 0
     
@@ -313,38 +344,77 @@ class ethical_engine():
         scores = self.agent.belief_value(self.agent.B('scores'))
         plan1_c = scores[plan1]['result'].get_vals()
         plan2_c = scores[plan2]['result'].get_vals()
-        
+        plan1_params = scores[plan1]['plan_params']
+        plan2_params = scores[plan2]['plan_params']
+
+        self.Experiment_Logger.write("plan1 =" + str(plan1_params))
+        self.Experiment_Logger.write("plan2 =" + str(plan2_params))
         #select the plan that puts the robot furthest from danger
         if plan1_c['robot_danger_dist'] > plan2_c['robot_danger_dist']:
             first = plan1_c
             second = plan2_c
             return_val = 1
+            self.Experiment_Logger.write("plan1 RDD " + str(plan1_c['robot_danger_dist']) + "> plan2 RDD " + str(plan2_c['robot_danger_dist']))
         else:
             first = plan2_c
             second = plan1_c
             return_val = 0
-            
+            self.Experiment_Logger.write("plan2 RDD " + str(plan2_c['robot_danger_dist']) + "> plan1 RDD " + str(plan1_c['robot_danger_dist']))
         #check if the selected plan makes the robot much further from its own goal, and select the other plan if it is
-        if self.agent.B('human_order'):#only care about robot objective if it comes from a human instruction
+        if self.agent.B('human_order')():#only care about robot objective if it comes from a human instruction
+            #self.Experiment_Logger.write(str(self.agent.beliefbase))
+            self.Experiment_Logger.write(str(self.agent.B('human_order')))
             if self.much_worse(first['robot_obj_dist'],second['robot_obj_dist'], self.settings['DT_robot_obj_dist']):
                 first_old = first
                 first = second
                 second = first_old
                 return_val ^= 1 #flip bit to select the other plan
-        
+                self.Experiment_Logger.write("selected plan is much_worse for ROD")
         #check if the selected plan makes the human much more in danger, and select the other plan if it is        
         if self.much_worse(first['danger_distance'],second['danger_distance'], self.settings['DT_danger_distance']):
             first_old = first
             first = second
             second = first_old
             return_val ^= 1 #flip bit to select the other plan
+            self.Experiment_Logger.write("selected plan is much_worse for DD")
+            
             
         return return_val
+    
+    def compare_plans_asimov2(self, plan1, plan2):#for with human order
+        scores = self.agent.belief_value(self.agent.B('scores'))
+        plan1_c = scores[plan1]['result']
+        plan2_c = scores[plan2]['result']
+        plan1_params = scores[plan1]['plan_params']
+        plan2_params = scores[plan2]['plan_params']
+
+        self.Experiment_Logger.write("plan1 =" + str(plan1_params))
+        self.Experiment_Logger.write("plan2 =" + str(plan2_params))
+        
+        if (plan2_c.robot_danger_dist < plan1_c.robot_danger_dist) and not (self.much_worse(plan1_c.robot_danger_dist, plan2_c.robot_danger_dist, self.settings['DT_robot_danger_dist'])) and not (self.much_worse(plan1_c.robot_obj_distance, plan2_c.robot_obj_distance, self.settings['DT_robot_obj_distance'])) and not (self.much_worse(plan1_c.human_danger_distance, plan2_c.human_danger_distance, self.settings['DT_human_danger_distance'])):
+            self.Experiment_Logger.write("plan1 RDD " + str(plan1_c['robot_danger_dist']) + "> plan2 RDD " + str(plan2_c['robot_danger_dist']))
+            return 1;
+        else:
+            if self.much_worse(plan2_c.human_danger_distance, plan1_c.human_danger_distance, self.settings['DT_human_danger_distance']):
+                self.Experiment_Logger.write("Plan2 is much_worse for DD")
+                return 1;
+            else:
+                if (self.much_worse(plan2_c.robot_obj_distance, plan1_c.robot_obj_distance, self.settings['DT_robot_obj_distance']) and not (self.much_worse(plan1_c.human_danger_distance, plan2_c.human_danger_distance, self.settings['DT_human_danger_distance']))):
+                    self.Experiment_Logger.write("Plan2 is much_worse for ROD")
+                    return 1;
+                else:
+                    if (self.much_worse(plan2_c.robot_danger_dist, plan1_c.robot_danger_dist, self.settings['DT_robot_danger_dist']) and not (self.much_worse(plan1_c.robot_obj_distance, plan2_c.robot_obj_distance, self.settings['DT_robot_obj_distance'])) and not (self.much_worse(plan1_c.human_danger_distance, plan2_c.human_danger_distance, self.settings['DT_human_danger_distance']))):
+                        self.Experiment_Logger.write("Plan2 is much_worse for RDD")
+                        return 1;
+                    else:
+                        self.Experiment_Logger.write("Plan2 is better")#test this all works first before I add a bunch of checks to be able to log why plan2 is better
+                        return 0;                  
             
     def compare_plans_asimov_WT(self, plan1, plan2):
         scores = self.agent.belief_value(self.agent.B('scores'))
         plan1_c = scores[plan1]['result'].get_vals()
         plan2_c = scores[plan2]['result'].get_vals()
+        self.Experiment_Logger.write("compare on WT")
         
         metrics = ['robot_danger_dist']
         if self.agent.B('human_order'):
@@ -352,7 +422,7 @@ class ethical_engine():
         metrics.append('danger_distance')
         
         #select the plan that puts the robot furthest from danger
-        if plan1_c['robot_danger_dist'] > plan2_c['wait_time']:
+        if plan1_c['wait_time'] > plan2_c['wait_time']:
             first = plan1_c
             second = plan2_c
             return_val = 1
@@ -362,11 +432,12 @@ class ethical_engine():
             return_val = 0
         
         for metric in metrics:
-            if self.much_worse(first[metric],second[metric], 'DT_' + metric):
+            if self.much_worse(first[metric],second[metric], self.settings['DT_' + metric]):
                 first_old = first
                 first = second
                 second = first_old
                 return_val ^= 1 #flip bit to select the other plan
+                self.Experiment_Logger.write(metric + " much worse")
                    
         return return_val    
     
@@ -380,7 +451,7 @@ class ethical_engine():
             metrics.append('robot_obj_dist')
         metrics.append('danger_distance')
         #select the plan that puts the robot furthest from danger
-        if plan1_c['robot_danger_dist'] > plan2_c['robot_walking_dist']:
+        if plan1_c['robot_walking_dist'] < plan2_c['robot_walking_dist']:
             first = plan1_c
             second = plan2_c
             return_val = 1
@@ -390,7 +461,7 @@ class ethical_engine():
             return_val = 0
         
         for metric in metrics:
-            if self.much_worse(first[metric],second[metric], 'DT_' + metric):
+            if self.much_worse(first[metric],second[metric], self.settings['DT_' + metric]):
                 first_old = first
                 first = second
                 second = first_old
@@ -441,6 +512,14 @@ class ethical_engine():
 #         return result 
 #==============================================================================
 
+    def add_plans(self):
+        plan_labels = []
+        for label in range(len(self.consequence_results)):
+            plan_labels.append(str(label))
+        self.agent.add_belief_value('plans', plan_labels)
+        result_dict = dict(zip(plan_labels, self.consequence_results))
+        self.agent.add_belief_value('scores', result_dict)
+
 #        update_beliefs populates the agent's belief base and return information necessary for executing rules
     def update_beliefs(self):
         #self.Experiment_Logger.write('Updating Beliefs')
@@ -453,6 +532,8 @@ class ethical_engine():
 #######################################
         if 'human_order' in self.settings:
             self.agent.add_belief('human_order')
+        else:
+            self.agent.drop_belief('human_order')
 #==============================================================================
 #         msgs = 0#messages from planners
 #             
@@ -469,41 +550,86 @@ class ethical_engine():
         while not self.results_q.empty():
             result = self.results_q.get()
             no_intervention = result
-            self.msgs = self.msgs + 1
-            self.Experiment_Logger.write('msgs = ' + str(self.msgs))
-        if self.msgs == len(self.settings['plan_types']):#if there are new plans from the planners then retrieve them   
-            self.Experiment_Logger.write('New plan data')
-            self.msgs = 0#reset the message counter
-            #and Consequence engines
-            self.consequence_results = []
-            #print 'EE q-size = ',self.plan_eval_q.qsize()
-            while True:
-                try:
-                    self.consequence_results.append(self.plan_eval_q.get(block=False))
-                    #print 'loop q-size = ',self.plan_eval_q.qsize()
-                except Queue.Empty:
-                    #print 'loop exit q-size = ',self.plan_eval_q.qsize()
-                    if self.plan_eval_q.qsize() == 0:
-                        break
+            
+            
+            
+            if result['plan'] == 'base':
+                self.consequence_results = []
+    
+                while True:
+                    try:
+                        self.consequence_results.append(self.plan_eval_q.get(block=False))
+                        #print 'loop q-size = ',self.plan_eval_q.qsize()
+                    except Queue.Empty:
+                        #print 'loop exit q-size = ',self.plan_eval_q.qsize()
+                        if self.plan_eval_q.qsize() == 0:
+                            break
                     
-            for _ in range(len(self.settings['plan_types'])):
+                #check object goal plans for human danger
+                danger = 0
+                for result in self.consequence_results:
+                    #self.Experiment_Logger.write("danger = " + str(danger) + str(result['result'].danger_distance))
+                    if result['result'].danger_distance < -1*self.settings['DT_danger_distance']:
+                        danger += 1
+                
+                if danger == len(self.consequence_results):
+                    self.agent.add_belief('pro_active_plans_needed')
+                    #task done not called on results_q here as we want the base planner to wait until the other planners are done before replanning starts
+                else:
+                    self.agent.drop_belief('pro_active_plans_needed')
+                    self.add_plans()
                     self.results_q.task_done()#let the planner processes start on producing the next msg set
+                
+                
+            else:
+                self.msgs = self.msgs + 1
+                self.Experiment_Logger.write('msgs = ' + str(self.msgs))
+                
+                if self.msgs == len(self.settings['plan_types'])-1:#if there are new plans from the planners then retrieve them   
+                    self.Experiment_Logger.write('New plan data')
+                    self.msgs = 0#reset the message counter
                     
-    #==============================================================================
-    #         while self.plan_eval_q.qsize():
-    #             try:
-    #                 consequence_results.append(self.plan_eval_q.get())
-    #             except Queue.Empty:
-    #                 pass
-    #==============================================================================
-            
-            #print 'EE_2 q-size = ',self.plan_eval_q.qsize()
-            #print 'q empty? ',self.plan_eval_q.empty()
-            
-            #If human is closer to danger should choose the shortest path
-            #If human is further from danger should choose longest wait as prediction is harder so less accurate
-            self.Experiment_Logger.write('Plans evaluated = ' + str(len(self.consequence_results)))
-            
+                    #print 'EE q-size = ',self.plan_eval_q.qsize()
+                    while True:
+                        try:
+                            self.consequence_results.append(self.plan_eval_q.get(block=False))
+                            #print 'loop q-size = ',self.plan_eval_q.qsize()
+                        except Queue.Empty:
+                            #print 'loop exit q-size = ',self.plan_eval_q.qsize()
+                            if self.plan_eval_q.qsize() == 0:
+                                break
+                        
+                    self.add_plans()
+                    self.robot_controller.pro_plans_flag.clear()
+                    for _ in range(len(self.settings['plan_types'])):
+                            self.results_q.task_done()#let the planner processes start on producing the next msg set
+                     
+                    self.Experiment_Logger.write("path length = " + str(no_intervention['path_length']))
+                    if no_intervention['path_length'] < self.settings['danger_close']:#human starts close to danger
+                        self.agent.add_belief('danger_close')
+                        self.agent.drop_belief('danger_far')
+                    elif no_intervention['path_length'] > self.settings['danger_far']:#human starts far from danger
+                        self.agent.add_belief('danger_far')
+                        self.agent.drop_belief('danger_close')
+                    else:
+                        self.agent.drop_belief('danger_close')
+                        self.agent.drop_belief('danger_far')
+                    rule_info['closest_danger'] = no_intervention['closest_danger']       
+        #==============================================================================
+        #         while self.plan_eval_q.qsize():
+        #             try:
+        #                 consequence_results.append(self.plan_eval_q.get())
+        #             except Queue.Empty:
+        #                 pass
+        #==============================================================================
+                
+                #print 'EE_2 q-size = ',self.plan_eval_q.qsize()
+                #print 'q empty? ',self.plan_eval_q.empty()
+                
+                #If human is closer to danger should choose the shortest path
+                #If human is further from danger should choose longest wait as prediction is harder so less accurate
+                    self.Experiment_Logger.write('Plans evaluated = ' + str(len(self.consequence_results)))
+                
 #==============================================================================
 #             print "path length = ", no_intervention['path_length']
 #             for plan in self.consequence_results:
@@ -545,39 +671,47 @@ class ethical_engine():
 #==============================================================================
             #the retrieved plans will include updated human in danger information so update the associated belief
             #and the plan information
-            self.Experiment_Logger.write("DD " + str(no_intervention['danger_distance']))
-            d = sys.stdin.read(2)
-            if no_intervention['danger_distance'] > self.settings['safe_dist']:#if human not in danger then stop the robot
-                self.agent.drop_belief('human_in_danger')
+            #self.Experiment_Logger.write("DD " + str(no_intervention['danger_distance']))
+            
+            #if no_intervention['danger_distance'] > self.settings['safe_dist']:#if human not in danger then stop the robot
+            #    self.agent.drop_belief('human_in_danger')
                 #TODO check with Louise if it is okay doing this here rather than inside a rule
                 #doing it in a rule would need some careful refactoring to make that work properly
-                self.agent.drop_belief('at_goal')
-                self.agent.add_belief('revert_plan')
+            #    self.agent.drop_belief('at_goal')
+            #    self.agent.add_belief('revert_plan')
                 #self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-                self.Experiment_Logger.write('human not in danger')
-            else:           
-                self.agent.add_belief('human_in_danger')
-                plan_labels = []
-                for label in range(len(self.consequence_results)):
-                    plan_labels.append(str(label))
-                self.agent.add_belief_value('plans', plan_labels)
-                result_dict = dict(zip(plan_labels, self.consequence_results))
-                self.agent.add_belief_value('scores', result_dict)
+            #    plan_labels = []
+            #    for label in range(len(self.consequence_results)):
+            #        plan_labels.append(str(label))
+            #    self.agent.add_belief_value('plans', plan_labels)
+            #    result_dict = dict(zip(plan_labels, self.consequence_results))
+            #    self.agent.add_belief_value('scores', result_dict)
+                
+            #    self.Experiment_Logger.write('human not in danger')
+            #else:           
+            #    self.agent.add_belief('human_in_danger')
+            #    self.Experiment_Logger.write('human in danger')
+            #    plan_labels = []
+            #    for label in range(len(self.consequence_results)):
+            #        plan_labels.append(str(label))
+            #    self.agent.add_belief_value('plans', plan_labels)
+            #    result_dict = dict(zip(plan_labels, self.consequence_results))
+            #    self.agent.add_belief_value('scores', result_dict)
                 #print plan_labels
                 #print result_dict
                 #TODO set conditions properly. One option is self.consequence_results[0][robot_actor_dist]
                 #the distance between the two actors at the start, other facts could be added to the message dict from Consequence_para
-                
-                if no_intervention['path_length'] < self.settings['danger_close']:#human starts close to danger
-                    self.agent.add_belief('danger_close')
-                    self.agent.drop_belief('danger_far')
-                elif no_intervention['path_length'] > self.settings['danger_far']:#human starts far from danger
-                    self.agent.add_belief('weights_2')
-                    self.agent.drop_belief('danger_far')
-                else:
-                    self.agent.drop_belief('danger_close')
-                    self.agent.drop_belief('danger_far')
-                    
+#                self.Experiment_Logger.write("path length = " + str(no_intervention['path_length']))
+#                if no_intervention['path_length'] < self.settings['danger_close']:#human starts close to danger
+#                    self.agent.add_belief('danger_close')
+#                    self.agent.drop_belief('danger_far')
+#                elif no_intervention['path_length'] > self.settings['danger_far']:#human starts far from danger
+#                    self.agent.add_belief('danger_far')
+#                    self.agent.drop_belief('danger_close')
+#                else:
+#                    self.agent.drop_belief('danger_close')
+#                    self.agent.drop_belief('danger_far')
+#                rule_info['closest_danger'] = no_intervention['closest_danger']
                 #print self.agent.beliefbase   
                 #time.sleep(10)
                 #consequence_result = self.compare_plans(consequence_results)
@@ -586,11 +720,11 @@ class ethical_engine():
                 #else:#if all the plans fail then robot just walks to its own objective
                 #    self.agent.add_belief('all_plans_fail')#this belief is not used currently but is added for logging purposes
                 #    self.plan = {'type':'move','angle':0,'position':self.settings['ROBOT_objective'],'point_pos':(0,0),'speed':0.25}
-                rule_info['closest_danger'] = no_intervention['closest_danger']
+                
                         
-            #################### test plan for use in debugging ###############            
-            if 'ROBOT_plan' in self.settings: self.plan = self.settings['ROBOT_plan']#predefined set plan from settings file
-            ############################################
+        #################### test plan for use in debugging ###############            
+        if 'ROBOT_plan' in self.settings: self.plan = self.settings['ROBOT_plan']#predefined set plan from settings file
+        ############################################
     
         rule_info['plan'] = self.plan
         self.agent.drop_belief('warning_plan')
@@ -605,7 +739,8 @@ class ethical_engine():
         else:
             current_position = self.settings['DEBUG_position_ROBOT']
             
-        
+        #print "cp ", current_position
+        #print "plan p ", self.plan['position']
         self.robot_controller.travelled_path.append(current_position)#log travelled path            
         distance_to_goal = (numpy.sum((numpy.array(current_position) - numpy.array(self.plan['position']))**2))**0.5
         tracked_target_locs = []
@@ -619,10 +754,11 @@ class ethical_engine():
             
         for tracked_target_loc in tracked_target_locs:
             distance_to_target = (numpy.sum((numpy.array(current_position) - numpy.array(tracked_target_loc))**2))**0.5
-            if distance_to_target < 0.3:
+            if distance_to_target < 0.55:
                 self.agent.add_belief('at_objective')
         #print 'dist ',distance_to_target
         #print current_position
+        self.agent.drop_belief('at_goal')
         if (distance_to_goal < 0.1):
             self.agent.add_belief('at_goal')
             
@@ -639,7 +775,7 @@ class ethical_engine():
  
             inter_robot_distance = numpy.sum((numpy.array(current_position) - numpy.array(current_position_human))**2)**0.5
             self.Experiment_Logger.write('Distance to ' + human + ' = ' + str(inter_robot_distance))
-            if inter_robot_distance < 0.5:#if too close to a human then stop the robot
+            if inter_robot_distance < 0.45:#if too close to a human then stop the robot
                 self.agent.add_belief('too_close_to_a_human')
                 self.Experiment_Logger.write('too close')
                 

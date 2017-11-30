@@ -60,7 +60,7 @@ def main(argv):
             plotting = True
    
    
-   
+    
     settings = {}
     try:
         with open(settings_file) as f:
@@ -69,6 +69,7 @@ def main(argv):
                         try:
                             (key, val) = line.split()                        
                         except:
+                            print "invalid line"
                             print line
                             sys.exit(2)
                         try:
@@ -83,7 +84,7 @@ def main(argv):
         print 'invalid file'
         sys.exit(2)
            
-
+    print "test"
 ##################################    
 #prepare folders and files    
 ##################################
@@ -126,7 +127,7 @@ def main(argv):
 #####################
 # create objects
 #####################
-
+    
     Experiment_Logger = Utilities.Logger('Supervision')
     
     Experiment_Logger.write('Running script: ' + settings['session_name'])
@@ -152,6 +153,9 @@ def main(argv):
         Tracker = Utilities.Tracker(tracked_objects, settings['virtual_objects'], shared_d_p, shared_d_v, shared_d_r, shared_d_s)    
         while 'ROBOT' not in shared_d_p.keys(): pass#wait for tracker dict to fill
             
+
+    if isinstance(settings['ROBOT_objective'],basestring):
+        settings['ROBOT_objective'] = Tracker.get_position(settings['ROBOT_objective'])[0:2]
         
 #==============================================================================
 #     danger_locs =[]
@@ -180,10 +184,10 @@ def main(argv):
     results_q = mp.JoinableQueue()#queue for communication between the CE processes and the manager process
     plan_eval_q = mp.Queue()
     end_flag = mp.Event()
+    pro_plans_flag = mp.Event()
     
     planners = {}
-    for plan in settings['plan_types']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, end_flag)
-
+    for plan in settings['plan_types']: planners[plan] = planner.Planner(settings, Tracker, plan, results_q, plan_eval_q, end_flag, pro_plans_flag)
     #create the robot object
     Experiment_Logger.write('Generating Ethical Robot')
     robot=robot_control.robot_controller(Tracker,robot_q, human_q, session_path, settings, results_q, plan_eval_q,planners)
@@ -238,7 +242,7 @@ def main(argv):
         #for plan in ['move','warn','point']: CE_processes[plan] = mp.Process(target=robot.CE_process, args=(plan,))
         #for plan in ['move','warn','point']: CE_processes[plan].start()
         for plan in settings['plan_types']: planners[plan].plan_process.start()
-
+        
         #for _ in range(3):
         #    robot.results_q.put(1)
         robot.CE_manager.join()
@@ -247,6 +251,21 @@ def main(argv):
             Tracker.stop()
         for plan in settings['plan_types']: planners[plan].plan_process.terminate()
         Experiment_Logger.write('Loop exited')
+        
+        #Tracker.stop()
+        experimental_data = {}
+        experimental_data['time'] = time.asctime()
+        
+        if Tracker:
+            for target_name in settings['tracked_targets']:
+                experimental_data[target_name] = Tracker.get_position(target_name)
+            
+        experimental_data['robot_path'] = robot.travelled_path
+        #for human in settings['humans']:
+        #    experimental_data[human + '_path'] = humans[human].travelled_path
+        
+        io.savemat(session_path + '/experimental_data.mat', experimental_data)
+        shutil.copy(settings_file, session_path + '/code/')
              
         for f in files:
             if 'Log' in f:
@@ -330,6 +349,7 @@ def main(argv):
     
     io.savemat(session_path + '/experimental_data.mat', experimental_data)
     shutil.copy(settings_file, session_path + '/code/')
+    files = os.listdir('.')
     for f in files:
         if 'Log' in f:
             shutil.copy(f, session_path + '/logs/')

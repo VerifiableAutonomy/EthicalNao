@@ -143,13 +143,14 @@ class ConsequenceEngine():
         if speed_actor < self.__speed_threshold: inferred_goal = None
         
         if isinstance(inferred_goal,basestring): inferred_goal = self.__tracker.get_position(inferred_goal)[:2]
-        
+        self.__logger.write('Inferred Goal for ' + actor + ': ' + str(inferred_goal))
+        self.__logger.write('speed = ' + str(speed_actor))
         if minimal_return: return inferred_goal
 
         velocity_actor_norm = Utilities.normalize(velocity_actor) * 0.25
         velocity_actor_norm = velocity_actor_norm + position_actor
         velocity_actor_plot = numpy.vstack((position_actor, velocity_actor_norm))
-        self.__logger.write('Inferred Goal for ' + actor + ': ' + str(inferred_goal))
+        
 
         result = {}
         result['inferred_goal'] = inferred_goal
@@ -269,10 +270,10 @@ class ConsequenceEngine():
 #             print human_eval['path']
 #==============================================================================
 
-            #print 'dist'
-            #print robot_eval['distances_along_path']
-            #use the point where this first occurs as an intercept and ditch the rest of the human plan as it won't be executed
-            #store the cropped path with actor name in a dict so it can be re-evaluated
+        #print 'dist'
+        #print robot_eval['distances_along_path']
+        #use the point where this first occurs as an intercept and ditch the rest of the human plan as it won't be executed
+        #store the cropped path with actor name in a dict so it can be re-evaluated
             human_path = {}
             human_path['path'] = human_eval['path'][:intercept_idx+1]#updated path is up to and including intercept
             human_path['actor'] = human_eval['actor'] 
@@ -301,7 +302,14 @@ class ConsequenceEngine():
                                 self.settings['W_robot_danger_dist']* score.robot_danger_dist + \
                                 self.settings['W_robot_obj_dist']* score.robot_obj_dist
         else:
-            self.__logger.write('Plan fails.intercept_idx = ' + str(intercept_idx) + ' robot_in_danger = ' + str(robot_eval['in_danger']))
+            #set scores for no intercept, this will mean non-zero values for some of the results
+            score.closest_danger = human_eval['closest_danger']
+            score.robot_walking_dist = robot_eval['distances_along_path'][-1]
+            score.robot_speed = plan_params['speed']
+            score.danger_distance = human_eval['danger_distance']
+            score.robot_danger_dist = robot_eval['danger_dist']
+            score.robot_obj_dist = robot_eval['obj_dist']
+        #    self.__logger.write('Plan fails.intercept_idx = ' + str(intercept_idx) + ' robot_in_danger = ' + str(robot_eval['in_danger']))
 #==============================================================================
 #             score['total'] =    self.settings['W_danger_distance']*score['danger_distance'] + \
 #                                 (self.settings['W_robot_walking_dist']*score['robot_walking_dist'] * \
@@ -549,8 +557,10 @@ class ConsequenceEngine():
             result.robot_danger_dist = robot_plan['danger_dist']
             result.robot_obj_dist = robot_plan['obj_dist']
             result.robot_walking_dist = robot_plan['distances_along_path'][-1]
-            
+            result.total = 1
         else:
+            if self.__plan == 'base':
+                result = self.predict_and_evaluate_intercept(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
             if self.__plan == 'move':
                 result = self.predict_and_evaluate_intercept(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
                 #print 'move'
@@ -560,7 +570,7 @@ class ConsequenceEngine():
             elif self.__plan == 'point':
                 result = self.predict_and_evaluate_point(actor, plan_params, current_situation, robot_plan, robot_actor_dists)
                 #print 'point'
-        if result and human_goal <> None:    
+        if result:    
             score = actor + ' robot goal ' + str(robot_goal) + ' speed ' + str(plan_params['speed']) + ' WD ' + str(result.robot_walking_dist)+ ' WT ' + str(result.wait_time) + ' RDD ' + str(result.robot_danger_dist) + ' ROD ' + str(result.robot_obj_dist) + ' CD ' + str(result.closest_danger) + ' DD ' + str(result.danger_distance) +' Total ' + str(result.total)
         else:
             score = str(result)

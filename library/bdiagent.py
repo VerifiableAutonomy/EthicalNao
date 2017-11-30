@@ -186,7 +186,7 @@ class Agent(object):
         self.num_rules = self.num_rules + 1
 
     def best_of(self, listb, comp_function):
-        if type(listb()) != list:
+        if type(listb()) != list or len(listb()) == 0:
             return listb
         best = listb()[0]
         for x in listb():

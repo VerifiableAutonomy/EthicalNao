@@ -25,7 +25,7 @@ import time
 #use Utilities.distance2points(robot_location, human_trajectory) to get distance between robot and human predicted path
 #also need human_trajectory['distances_along_path'] to get human travel
 #calculate min and max point on path where robot has to walk human distance * max speed ratio to get X domain
-ROBOT_MAX_S = 0.5
+ROBOT_MAX_S = 0.2
 
 class sim_evaluator():
     def __init__(self, actor, plan, plot, CE, robot_location, human_location, human_goal, settings):
@@ -51,44 +51,46 @@ class sim_evaluator():
             step = 0.25 * (self.settings['HUMAN_A_speed_factor']/self.settings['ROBOT_speed_factor'])#calculate smaller step size
             self.CE.change_step('HUMAN_A',step)#reduce the step size for the robot   
         
-        
-        self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=self.human_goal, plot=plot)#.replace('XXX', actor)+actor)
-        #calculate the max and min points on the human path that the robot can reach at max speed to set the bounds for the GP
-        #for all plans this is slightly more restrictive than needed as robot won't need to walk all the way to the human path to succeed, esp. with warn and point
-        self.distances_to_path = Utilities.distance2points(np.array(robot_location), self.current_situation['path'])
-        speed_ratio = ROBOT_MAX_S/0.25
-        x_lim = []
-        x_idxs = []
-        for idx,distance in enumerate(self.distances_to_path):
-            if distance <= self.current_situation['distances_along_path'][idx]*speed_ratio:
-                x_lim.append(self.current_situation['path'][idx][0])#append valid X values to the current list
-                x_idxs.append(idx)
-        #search x_lims to find range of values for x
-        x_lim = np.array(x_lim)
-        try:
-            self.x_bounds = (np.min(x_lim),np.max(x_lim))
-            self.xy_min_idx = x_idxs[0]
-        except:
-            if plan == 'move':
-                print 'hum loc ', self.human_location
-                print 'hum goal ', self.human_goal
-                print 'hum path ', self.current_situation['path']
-                print 'dists ', self.distances_to_path
-            
-        #use path to estimate line parameters so Ys can be calculated from suggested Xs
-        #print self.current_situation['path']
-        if self.current_situation['path'][0][1] == self.current_situation['path'][-1][1]:
-            #if the y values are equal
-            self.grad = 0 #grad is zero and y = constant (intercept)
-            self.intercept = self.current_situation['path'][0][1]
-        elif self.current_situation['path'][0][0] == self.current_situation['path'][-1][0]:
-            #if the x values are equal
-            self.grad = 'X' #grad is zero and x = constant (intercept), flag value to indicate optimisation changed
-            self.intercept = self.current_situation['path'][0][1]      
-        else:      
-            self.grad = (self.current_situation['path'][0][1] - self.current_situation['path'][-1][1])/(self.current_situation['path'][0][0] - self.current_situation['path'][-1][0])
-            self.intercept = self.current_situation['path'][0][1] - (self.grad*self.current_situation['path'][0][1])
-            
+        if human_goal <> None: 
+            self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=self.human_goal, plot=plot)#.replace('XXX', actor)+actor)
+            #calculate the max and min points on the human path that the robot can reach at max speed to set the bounds for the GP
+            #for all plans this is slightly more restrictive than needed as robot won't need to walk all the way to the human path to succeed, esp. with warn and point
+            self.distances_to_path = Utilities.distance2points(np.array(robot_location), self.current_situation['path'])
+            speed_ratio = self.settings['ROBOT_speed_factor']/self.settings['HUMAN_A_speed_factor']
+            x_lim = []
+            x_idxs = []
+            for idx,distance in enumerate(self.distances_to_path):
+                if distance <= self.current_situation['distances_along_path'][idx]*speed_ratio:
+                    x_lim.append(self.current_situation['path'][idx][0])#append valid X values to the current list
+                    x_idxs.append(idx)
+            #search x_lims to find range of values for x
+            x_lim = np.array(x_lim)
+            try:
+                self.x_bounds = (np.min(x_lim),np.max(x_lim))
+                self.xy_min_idx = x_idxs[0]
+            except:
+                if plan == 'move':
+                    print 'hum loc ', self.human_location
+                    print 'hum goal ', self.human_goal
+                    print 'hum path ', self.current_situation['path']
+                    print 'dists ', self.distances_to_path
+                
+            #use path to estimate line parameters so Ys can be calculated from suggested Xs
+            #print self.current_situation['path']
+            if self.current_situation['path'][0][1] == self.current_situation['path'][-1][1]:
+                #if the y values are equal
+                self.grad = 0 #grad is zero and y = constant (intercept)
+                self.intercept = self.current_situation['path'][0][1]
+            elif self.current_situation['path'][0][0] == self.current_situation['path'][-1][0]:
+                #if the x values are equal
+                self.grad = 'X' #grad is zero and x = constant (intercept), flag value to indicate optimisation changed
+                self.intercept = self.current_situation['path'][0][1]      
+            else:      
+                self.grad = (self.current_situation['path'][0][1] - self.current_situation['path'][-1][1])/(self.current_situation['path'][0][0] - self.current_situation['path'][-1][0])
+                self.intercept = self.current_situation['path'][0][1] - (self.grad*self.current_situation['path'][0][1])
+        else:
+            #use an arbitrary goal for current situation so as not to break things
+            self.current_situation = CE.predict_and_evaluate(actor, start = self.human_location, goal=(0,0), plot=plot)#.replace('XXX', actor)+actor)
          
             
     def calculate_score(self, params):
@@ -110,7 +112,7 @@ class sim_evaluator():
                         
         self.plan_params['point_pos'] = (0,0)#currently fixed for testing but can be added as optimisation parameters
         if  'HEURISTIC_MODE' in self.settings:
-            self.plan_params['speed'] = 0.5
+            self.plan_params['speed'] = self.settings['ROBOT_speed_factor']
         else:
             self.plan_params['speed'] = params[0][1]
 
@@ -131,21 +133,21 @@ class sim_evaluator():
             
         #time.sleep(10)
         #if the human step size has changed then recalculate the current_situation for the human as otherwise the step size is wrong
-        if self.CE.graphs[human].get_step() <> current_step:
+        if self.CE.graphs[human].get_step() <> current_step and self.human_goal <> None:
             self.current_situation = self.CE.predict_and_evaluate(human, start = self.human_location, goal=self.human_goal, plot=False)
 
             
         
         robot_plan = self.CE.predict_path('ROBOT', actor_start = self.robot_location, goal=self.plan_params['position'], plot=False)
         #set the robot location one step along the predicted path so it uses information based on where the robot will be when planning is finished
-        self.robot_location = robot_plan['path'][1]
+        #self.robot_location = robot_plan['path'][1]
 
-        try:#if there is a current situation simulation set the human to being one step along the path in the same way as the robot_location
-            self.human_location = self.current_situation['path'][1]
-        except:
-            pass
+        #try:#if there is a current situation simulation set the human to being one step along the path in the same way as the robot_location
+        #    self.human_location = self.current_situation['path'][1]
+        #except:
+        #    pass
         
-        if self.plan <> 'move':
+        if self.plan == 'warn' or self.plan == 'point':
             dists_to_path = Utilities.distance2points(self.plan_params['position'], robot_plan['path'])
             try:
                 stop_idx = next(idx for idx,dist_to_path in enumerate(dists_to_path) if dist_to_path < self.settings['hearing_dist'])

@@ -30,7 +30,7 @@ class Robot:
     def __init__(self, address, robot_name='Robot', tracker=False):
         self.logger = Utilities.Logger(robot_name)
         self.logger.write('Instantiating robot with ip ' + address)
-        self.speed_factor = 1
+        self.speed_factor = 0.25
 
         self.ip_address = address
         self.robot_name = robot_name
@@ -750,8 +750,10 @@ class Robot:
             v_x = movement_vector[0] * speed
             v_y = movement_vector[1] * speed
             v_r = sign(movement_rotation) * speed * 0.25
+            moveConfig = [["MaxStepFrequency", 0.2]]
+            self.motion.setMoveArmsEnabled(True,True)
             self.motion.moveInit()
-            self.motion.moveToward(v_x, v_y, v_r)
+            self.motion.moveToward(v_x, v_y, v_r, moveConfig)
 
             # pause and check for swaying
             time_left = period - (time.time() - start)
