@@ -574,9 +574,11 @@ class ethical_engine():
                 
                 if danger == len(self.consequence_results):
                     self.agent.add_belief('pro_active_plans_needed')
+                    self.Experiment_Logger.write('pro_active_plans_needed')
                     #task done not called on results_q here as we want the base planner to wait until the other planners are done before replanning starts
                 else:
                     self.agent.drop_belief('pro_active_plans_needed')
+                    self.Experiment_Logger.write('no pro_active_plans_needed')
                     self.add_plans()
                     self.results_q.task_done()#let the planner processes start on producing the next msg set
                 
