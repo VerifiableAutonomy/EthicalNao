@@ -195,6 +195,10 @@ class Agent:
         for x in listb():
             if (comp_function(x, best)):
                 best = x
+
+        for x in listb():
+            if (x != best) and (comp_function(best, x)):
+                return 0;
         return [best]
 
 
